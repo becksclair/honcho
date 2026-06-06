@@ -21,6 +21,12 @@ from src.exceptions import ValidationException
 
 from .backend import ProviderBackend
 from .backends.anthropic import AnthropicBackend
+from .backends.codex import (
+    CodexResponsesBackend,
+    CodexResponsesClient,
+    make_default_codex_client,
+    normalize_codex_base_url,
+)
 from .backends.gemini import GeminiBackend
 from .backends.openai import OpenAIBackend
 from .credentials import default_transport_api_key
@@ -49,6 +55,7 @@ def get_openai_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=settings.LLM.OPENAI_API_KEY,
         base_url=settings.LLM.OPENAI_BASE_URL,
+        timeout=600.0,
     )
 
 
@@ -63,14 +70,26 @@ def get_gemini_client() -> genai.Client:
     return genai.Client(api_key=settings.LLM.GEMINI_API_KEY, http_options=http_options)
 
 
+@lru_cache(maxsize=1)
+def get_codex_client() -> CodexResponsesClient:
+    """Default Codex client built from settings.LLM.CODEX_*."""
+    return make_default_codex_client()
+
+
 # Bounded cache — in practice the (base_url, api_key) key space is small
 # and process-scoped, but maxsize=128 keeps worst-case memory predictable.
+@lru_cache(maxsize=128)
+def get_codex_override_client(base_url: str | None) -> CodexResponsesClient:
+    """Codex client for a specific base URL. Cached by key."""
+    return make_default_codex_client(base_url=base_url)
+
+
 @lru_cache(maxsize=128)
 def get_openai_override_client(
     base_url: str | None, api_key: str | None
 ) -> AsyncOpenAI:
     """OpenAI client for a specific (base_url, api_key) pair. Cached by key."""
-    return AsyncOpenAI(api_key=api_key, base_url=base_url)
+    return AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=600.0)
 
 
 @lru_cache(maxsize=128)
@@ -94,6 +113,7 @@ def get_gemini_override_client(
 # Module-level default-client registry, populated at import time. Tests patch
 # this dict via `patch.dict(CLIENTS, {...})` to inject mock provider clients.
 CLIENTS: dict[ModelTransport, ProviderClient] = {}
+CLIENTS["codex"] = get_codex_client()
 
 if settings.LLM.ANTHROPIC_API_KEY:
     CLIENTS["anthropic"] = AsyncAnthropic(
@@ -106,6 +126,7 @@ if settings.LLM.OPENAI_API_KEY:
     CLIENTS["openai"] = AsyncOpenAI(
         api_key=settings.LLM.OPENAI_API_KEY,
         base_url=settings.LLM.OPENAI_BASE_URL,
+        timeout=600.0,
     )
 
 if settings.LLM.GEMINI_API_KEY:
@@ -135,6 +156,18 @@ def client_for_model_config(
         if existing_client is not None:
             return existing_client
 
+    if provider == "codex":
+        if model_config.api_key is not None:
+            raise ValidationException(
+                "codex transport uses CODEX_AUTH_FILE and does not support api_key"
+            )
+        if model_config.base_url is None:
+            return _default_codex_client()
+        base_url = normalize_codex_base_url(model_config.base_url)
+        if base_url == normalize_codex_base_url(settings.LLM.CODEX_BASE_URL):
+            return _default_codex_client()
+        return get_codex_override_client(base_url)
+
     api_key = model_config.api_key or default_transport_api_key(provider)
     base_url = model_config.base_url
     if not api_key:
@@ -149,6 +182,10 @@ def client_for_model_config(
     assert_never(provider)
 
 
+def _default_codex_client() -> ProviderClient:
+    return CLIENTS.get("codex") or get_codex_client()
+
+
 def backend_for_provider(
     provider: ModelTransport,
     client: ProviderClient,
@@ -160,6 +197,10 @@ def backend_for_provider(
         return OpenAIBackend(client)
     if provider == "gemini":
         return GeminiBackend(client)
+    if provider == "codex":
+        if not isinstance(client, CodexResponsesClient):
+            raise ValidationException("Codex transport requires a Codex client")
+        return CodexResponsesBackend(client)
     assert_never(provider)
 
 
@@ -169,7 +210,11 @@ def history_adapter_for_provider(provider: ModelTransport) -> HistoryAdapter:
         return AnthropicHistoryAdapter()
     if provider == "gemini":
         return GeminiHistoryAdapter()
-    return OpenAIHistoryAdapter()
+    if provider == "openai":
+        return OpenAIHistoryAdapter()
+    if provider == "codex":
+        return OpenAIHistoryAdapter()
+    assert_never(provider)
 
 
 def get_backend(config: ModelConfig) -> ProviderBackend:
@@ -192,6 +237,8 @@ __all__ = [
     "get_anthropic_client",
     "get_anthropic_override_client",
     "get_backend",
+    "get_codex_client",
+    "get_codex_override_client",
     "get_gemini_client",
     "get_gemini_override_client",
     "get_openai_client",

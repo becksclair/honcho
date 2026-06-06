@@ -7,6 +7,10 @@ from src.exceptions import ValidationException
 def resolve_credentials(config: ModelConfig) -> dict[str, str | None]:
     """Resolve credentials for the effective model transport."""
 
+    if config.transport == "codex" and config.api_key is not None:
+        raise ValidationException(
+            "codex transport uses CODEX_AUTH_FILE and does not support api_key"
+        )
     default_api_key = default_transport_api_key(config.transport)
     return {
         "api_key": config.api_key or default_api_key,
@@ -22,4 +26,6 @@ def default_transport_api_key(transport: str) -> str | None:
         return settings.LLM.OPENAI_API_KEY
     if transport == "gemini":
         return settings.LLM.GEMINI_API_KEY
+    if transport == "codex":
+        return None
     raise ValidationException(f"Unknown transport: {transport}")
