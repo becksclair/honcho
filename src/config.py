@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Annotated, Any, ClassVar, Literal, cast
+from typing import Annotated, Any, ClassVar, Literal, cast, get_args
 
 import tomllib
 from dotenv import load_dotenv
@@ -22,7 +22,8 @@ if not os.getenv("PYTHON_DOTENV_DISABLED"):
 
 logger = logging.getLogger(__name__)
 
-ModelTransport = Literal["anthropic", "openai", "gemini"]
+ModelTransport = Literal["anthropic", "openai", "gemini", "codex"]
+MODEL_TRANSPORTS: frozenset[str] = frozenset(get_args(ModelTransport))
 EmbeddingTransport = Literal["openai", "gemini"]
 EmbeddingDimensionsMode = Literal["auto", "always", "never"]
 
@@ -95,7 +96,7 @@ def _normalize_model_transport(data: Any) -> Any:
     transport_value = update.get("transport")
     if isinstance(model_value, str) and "/" in model_value and transport_value is None:
         prefix, bare_model = model_value.split("/", 1)
-        if prefix in {"anthropic", "openai", "gemini"}:
+        if prefix in MODEL_TRANSPORTS:
             update["transport"] = prefix
             update["model"] = bare_model
     return update
@@ -668,6 +669,15 @@ class LLMSettings(HonchoSettings):
     ANTHROPIC_BASE_URL: str | None = None
     OPENAI_BASE_URL: str | None = None
     GEMINI_BASE_URL: str | None = None
+    CODEX_BASE_URL: str = "https://chatgpt.com/backend-api/codex"
+    CODEX_AUTH_FILE: str = "/home/bex/.codex/auth.json"
+    CODEX_ORIGINATOR: str = "honcho"
+    CODEX_USER_AGENT: str = "honcho"
+    CODEX_TIMEOUT_SECONDS: Annotated[float, Field(default=600.0, gt=0.0, le=3600.0)] = (
+        600.0
+    )
+    CODEX_REFRESH_SKEW_SECONDS: Annotated[int, Field(default=300, ge=0, le=3600)] = 300
+    CODEX_MAX_CONCURRENT_CALLS: Annotated[int, Field(default=1, gt=0, le=100)] = 1
 
     # General LLM settings
     DEFAULT_MAX_TOKENS: Annotated[int, Field(default=1000, gt=0, le=100_000)] = 2500

@@ -208,11 +208,14 @@ def test_legacy_prefixed_model_strings_are_normalized() -> None:
     configured = ConfiguredModelSettings.model_validate(
         {"model": "anthropic/claude-haiku-4-5"}
     )
+    codex = ConfiguredModelSettings.model_validate({"model": "codex/gpt-5.5"})
 
     assert config.transport == "gemini"
     assert config.model == "gemini-2.5-flash"
     assert configured.transport == "anthropic"
     assert configured.model == "claude-haiku-4-5"
+    assert codex.transport == "codex"
+    assert codex.model == "gpt-5.5"
 
 
 def test_dream_specialist_model_configs_are_independent() -> None:
@@ -268,9 +271,9 @@ def test_app_settings_explicit_vector_store_dimensions_warns_and_overrides() -> 
     messages = [
         str(w.message) for w in captured if issubclass(w.category, DeprecationWarning)
     ]
-    assert any(
-        "VECTOR_STORE_DIMENSIONS is deprecated" in m for m in messages
-    ), f"expected deprecation warning, got {messages!r}"
+    assert any("VECTOR_STORE_DIMENSIONS is deprecated" in m for m in messages), (
+        f"expected deprecation warning, got {messages!r}"
+    )
     assert settings.EMBEDDING.VECTOR_DIMENSIONS == 2048
     assert settings.VECTOR_STORE.DIMENSIONS == 2048, (
         "EMBEDDING.VECTOR_DIMENSIONS should always overwrite the operator-supplied "

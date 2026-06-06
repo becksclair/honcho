@@ -185,6 +185,42 @@ class TestEmitLLMCallCompleted:
         assert isinstance(event, LLMCallCompletedEvent)
         assert event.provider_label == "anthropic"
 
+    def test_codex_transport_emits_token_and_finish_metadata(self):
+        emitted: list[BaseEvent] = []
+
+        with patch(
+            "src.telemetry.events.emit",
+            side_effect=lambda event: emitted.append(event),
+        ):
+            _emit_llm_call_completed(
+                plan=None,
+                telemetry=LLMTelemetryContext(workspace_name="ws-codex"),
+                provider="codex",
+                model="gpt-5.5",
+                max_tokens=512,
+                duration_ms=42.0,
+                has_tools=True,
+                was_stream=False,
+                outcome="success",
+                result=BackendCompletionResult(
+                    content="done",
+                    input_tokens=33,
+                    output_tokens=9,
+                    cache_read_input_tokens=4,
+                    finish_reason="stop",
+                ),
+                error=None,
+            )
+
+        event = emitted[0]
+        assert isinstance(event, LLMCallCompletedEvent)
+        assert event.transport == "codex"
+        assert event.model == "gpt-5.5"
+        assert event.provider_input_tokens == 33
+        assert event.provider_output_tokens == 9
+        assert event.cache_read_tokens == 4
+        assert event.finish_reason == "stop"
+
     def test_telemetry_failures_swallowed(self):
         """A broken emitter must NOT propagate exceptions out of the LLM path."""
 
