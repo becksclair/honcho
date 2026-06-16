@@ -27,9 +27,7 @@ The user-visible proof at the end is not merely that tests pass. The proof is th
 - [x] (2026-06-05) Confirmed the existing OpenAI backend already handles GPT-5-family token naming for chat completions, but direct OpenAI API use is separate from using a ChatGPT subscription through Codex.
 - [x] (2026-06-05) Verified the normal Codex install is logged in with ChatGPT and can list `gpt-5.5`.
 - [x] (2026-06-06) Confirmed the local implementation can reuse Codex's normal ChatGPT auth file at `/home/bex/.codex/auth.json`.
-- [x] (2026-06-06) Copied `/home/bex/.codex/auth.json` into `/home/bex/.codex-honcho/auth.json` as an optional isolated service boundary, without printing token contents.
-- [x] (2026-06-06) Tightened permissions under `/home/bex/.codex-honcho` so directories are mode `700` and files are mode `600`.
-- [x] (2026-06-06) Proved the local auth file shape without printing tokens. `/home/bex/.codex/auth.json` and the optional `/home/bex/.codex-honcho/auth.json` copy contain `tokens.access_token`, `tokens.refresh_token`, `tokens.account_id`, and `tokens.id_token`.
+- [x] (2026-06-06) Proved the local auth file shape without printing tokens. `/home/bex/.codex/auth.json` contains `tokens.access_token`, `tokens.refresh_token`, `tokens.account_id`, and `tokens.id_token`.
 - [x] (2026-06-06) Confirmed Honcho already has `openai>=1.99.7` in `pyproject.toml`, and the locked environment has OpenAI Python `2.36.0` with `AsyncOpenAI.responses.create`.
 - [x] (2026-06-06) Confirmed the installed OpenAI Python Responses client supports `tools`, `tool_choice`, and `parallel_tool_calls`.
 - [x] (2026-06-06) Researched OpenClaw/Pi's ChatGPT Codex `gpt-5.5` path and confirmed it calls the ChatGPT Codex backend as an OpenAI Responses-family provider.
@@ -44,7 +42,7 @@ The user-visible proof at the end is not merely that tests pass. The proof is th
 - [x] (2026-06-06) Added non-live tests for config shorthand, credentials, auth loading/refresh, request construction, streaming aggregation, backend normalization, registry selection, tool-loop semantics, structured output, and telemetry.
 - [x] (2026-06-06) Added and passed an explicitly marked live Responses test using configured `CODEX_AUTH_FILE`, `gpt-5.5`, and a harmless required Honcho tool call.
 - [x] (2026-06-06) Ran a controlled live Honcho pilot by switching `dialectic.levels.minimal` to `codex/gpt-5.5`, restarting containers, and proving an in-container Honcho tool-loop call used the live config.
-- [x] (2026-06-06) Mounted `/home/bex/.codex-honcho` into the API and deriver containers as `/run/codex-auth` and set `LLM_CODEX_AUTH_FILE=/run/codex-auth/auth.json`.
+- [x] (2026-06-11) Mounted `/home/bex/.codex` into the API and deriver containers as `/run/codex-auth` and set `LLM_CODEX_AUTH_FILE=/run/codex-auth/auth.json`.
 - [x] (2026-06-06) Rebuilt and recreated `honcho-api-1` and `honcho-deriver-1` so live containers use the new Codex backend code and auth mount.
 - [x] (2026-06-06) Switched all dialectic levels (`minimal`, `low`, `medium`, `high`, `max`) to `transport="codex"` and `model="gpt-5.5"` after the minimal pilot was healthy.
 - [x] (2026-06-06) Verified effective live config inside `honcho-api-1`: all dialectic levels use `codex/gpt-5.5`; deriver, summary, dream deduction, and dream induction remain on Kimi through the existing OpenAI-compatible route.
@@ -54,12 +52,12 @@ The user-visible proof at the end is not merely that tests pass. The proof is th
 - [x] (2026-06-06) Re-ran the focused non-live Codex suite from this plan with `HONCHO_CONFIG_TOML_DISABLED=1`: `20 passed`.
 - [x] (2026-06-06) Re-ran `ruff check` and `basedpyright` on the touched Codex/config/test files: both clean.
 - [x] (2026-06-06) Audited production files for forbidden Codex SDK/CLI/app-server wiring and found no runtime matches.
-- [x] (2026-06-06) Cleaned up the old isolated Codex CLI state under `/home/bex/.codex-honcho`, leaving only the auth file and auth backup directory needed by the current container auth boundary.
+- [x] (2026-06-11) Removed the stale isolated-auth Docker boundary; live containers now read Codex auth from `/home/bex/.codex/auth.json`.
 
 ## Surprises & Discoveries
 
 - Observation: The discarded SDK/CLI experiment should not remain as operational guidance.
-  Evidence: The production backend now speaks the ChatGPT Codex Responses endpoint directly and preserves Honcho-owned tool execution. The old isolated CLI state was removed from `/home/bex/.codex-honcho`, leaving only the auth material used by the running container boundary.
+  Evidence: The production backend now speaks the ChatGPT Codex Responses endpoint directly and preserves Honcho-owned tool execution. Live containers use the normal Codex auth file through the `/run/codex-auth/auth.json` mount.
 
 - Observation: Honcho already owns the correct tool-loop abstraction.
   Evidence: `src/llm/tool_loop.py::execute_tool_loop` performs the iterative LLM call, executes requested tools through Honcho's executor closure, appends assistant/tool-result history, switches first-iteration `required`/`any` to `auto`, and records per-iteration telemetry.
@@ -73,8 +71,8 @@ The user-visible proof at the end is not merely that tests pass. The proof is th
 - Observation: The ChatGPT Codex endpoint is Responses-shaped, not chat-completions-shaped.
   Evidence: OpenClaw normalizes Codex models to API `openai-codex-responses` and base URL `https://chatgpt.com/backend-api/codex`; Pi resolves requests to `/codex/responses`.
 
-- Observation: `/home/bex/.codex-honcho` is optional, not the local default.
-  Evidence: Direct Responses calls do not need the Codex binary, Codex app-server, Codex thread state, a working directory, or Codex prompt injection. The normal Codex install already maintains the same ChatGPT auth shape at `/home/bex/.codex/auth.json`; the isolated copy is useful only when Honcho should have a separate auth/service boundary.
+- Observation: The normal Codex auth file is the only supported local service auth source.
+  Evidence: Direct Responses calls do not need the Codex binary, Codex app-server, Codex thread state, a working directory, or Codex prompt injection. The normal Codex install maintains the required ChatGPT auth shape at `/home/bex/.codex/auth.json`, and the running containers mount that directory directly.
 
 - Observation: Token refresh is production work, not a later convenience.
   Evidence: The auth file has a refresh token. OpenClaw/Pi refreshes against `https://auth.openai.com/oauth/token` with client id `app_EMoamEEZ73f0CkXaXp7hrann` and OAuth grant type `refresh_token`.
@@ -106,8 +104,8 @@ The user-visible proof at the end is not merely that tests pass. The proof is th
   Rationale: Honcho already depends on `openai` and `httpx`. Use `AsyncOpenAI.responses.create` if it can hit the ChatGPT backend cleanly; fall back to `httpx` only if the OpenAI Python client fights URL/header/SSE details.
   Date/Author: 2026-06-06 / Codex
 
-- Decision: Reuse Codex's normal auth file as the local default, with an explicit override for isolated service auth.
-  Rationale: Bex already has Codex installed and logged in, so `/home/bex/.codex/auth.json` is the simplest developer bootstrap. `CODEX_AUTH_FILE` should still be configurable so Docker, services, or experiments can point at `/home/bex/.codex-honcho/auth.json` or a mounted secret without coupling to the interactive Codex home.
+- Decision: Reuse Codex's normal auth file for local service auth.
+  Rationale: Bex already has Codex installed and logged in, so `/home/bex/.codex/auth.json` is the local source of truth. Docker mounts that directory into the containers and `CODEX_AUTH_FILE` points at the mounted `auth.json`.
   Date/Author: 2026-06-06 / Codex
 
 - Decision: Do not let an external Codex agent runtime own tools in the first implementation.
@@ -296,11 +294,9 @@ The local default auth source is Codex's normal ChatGPT login file:
 
     /home/bex/.codex/auth.json
 
-The auth source must be configurable through `CODEX_AUTH_FILE`. Use the optional isolated copy only when Honcho needs a separate service/container credential boundary:
+The auth source must be configurable through `CODEX_AUTH_FILE`, and the local deployment points it at the mounted normal Codex auth file.
 
-    /home/bex/.codex-honcho/auth.json
-
-Observed shape for both files:
+Observed shape:
 
     {
         "auth_mode": "chatgpt",
@@ -322,7 +318,7 @@ Add a small auth module, likely `src/llm/codex_auth.py` or private helpers in `s
 - Writes refreshed tokens back atomically with mode `600`.
 - Serializes refresh attempts with an async lock to avoid refresh-token reuse races.
 
-When the configured file is `/home/bex/.codex/auth.json`, the backend is intentionally reusing the interactive Codex subscription auth. That is the easiest local path. If refresh/writeback contention with the interactive Codex app becomes a problem, point `CODEX_AUTH_FILE` at `/home/bex/.codex-honcho/auth.json` or a Docker secret instead of changing the transport design.
+When the configured file is `/home/bex/.codex/auth.json`, the backend is intentionally reusing the interactive Codex subscription auth. That is the local service path.
 
 Refresh request:
 
@@ -528,7 +524,7 @@ can perturb unrelated defaults-oriented settings tests when the whole
 
 Add an explicitly marked live test that proves the actual ChatGPT Codex endpoint works from the repository test harness.
 
-The live test must be skipped by default. It should require a flag such as `--live-llm` and check that the configured `CODEX_AUTH_FILE` exists. The local default should be `/home/bex/.codex/auth.json`; `/home/bex/.codex-honcho/auth.json` is an optional override for isolated service testing.
+The live test must be skipped by default. It should require a flag such as `--live-llm` and check that the configured `CODEX_AUTH_FILE` exists. The local default should be `/home/bex/.codex/auth.json`.
 
 The live test should call `honcho_llm_call` with:
 
@@ -738,7 +734,7 @@ If a Codex-routed live pilot fails, restore the previous model config from the b
 
 If token refresh fails, stop routing live queue work to `codex` until auth is repaired. Do not repeatedly consume a refresh token in a tight retry loop.
 
-If `/home/bex/.codex/auth.json` is missing or invalid, fix the normal Codex login first. If the optional isolated `/home/bex/.codex-honcho/auth.json` is missing or invalid, recopy `/home/bex/.codex/auth.json` only if the normal home is still logged in. Do not copy global state databases unless a specific auth failure proves they are required.
+If `/home/bex/.codex/auth.json` is missing or invalid, fix the normal Codex login first. Do not copy global state databases unless a specific auth failure proves they are required.
 
 If the ChatGPT Codex endpoint rejects the OpenAI Python client request shape, switch only the transport layer inside `CodexResponsesBackend` to `httpx`; keep the same backend interface, request builder tests, and response normalization tests.
 
@@ -750,9 +746,7 @@ Default local auth file:
 
     /home/bex/.codex/auth.json
 
-Optional isolated service auth file currently used by Docker Compose:
-
-    /home/bex/.codex-honcho/auth.json
+Docker Compose mounts `/home/bex/.codex` into the API and deriver containers as `/run/codex-auth`.
 
 Local OpenAI Python proof:
 
@@ -839,4 +833,4 @@ Production must not depend on:
 ## Revision Notes
 
 - 2026-06-06 / Codex: Implemented `codex` as a ChatGPT Codex Responses backend that preserves Honcho's normal tool-call semantics immediately.
-- 2026-06-06 / Codex: Cleaned SDK/CLI experiment artifacts from the roadmap and removed old isolated Codex CLI state from `/home/bex/.codex-honcho`, leaving the auth boundary used by Docker Compose.
+- 2026-06-11 / Codex: Removed the stale isolated-auth Docker boundary; Docker Compose now mounts `/home/bex/.codex` for Codex auth.
