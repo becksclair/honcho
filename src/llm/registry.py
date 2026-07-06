@@ -38,6 +38,27 @@ from .history_adapters import (
 )
 from .types import ProviderClient
 
+# Client-level ``default_headers`` applied to OpenAI-compatible clients, keyed by
+# base-URL prefix. Currently only OpenRouter, which uses them for app attribution
+# (https://openrouter.ai/docs/app-attribution); add a prefix here to tag another
+# provider. Other OpenAI-compatible backends ignore unrecognized headers.
+_DEFAULT_HEADERS_BY_BASE_URL: dict[str, dict[str, str]] = {
+    "https://openrouter.ai": {
+        "HTTP-Referer": "https://honcho.dev",
+        "X-Openrouter-Title": "Honcho",
+    },
+}
+
+
+def _default_headers_for(base_url: str | None) -> dict[str, str]:
+    """Default headers for ``base_url`` (prefix match); these merge under any
+    per-request ``extra_headers`` passthrough, which wins on key collision."""
+    if base_url:
+        for prefix, headers in _DEFAULT_HEADERS_BY_BASE_URL.items():
+            if base_url.startswith(prefix):
+                return headers
+    return {}
+
 
 @lru_cache(maxsize=1)
 def get_anthropic_client() -> AsyncAnthropic:
@@ -56,6 +77,7 @@ def get_openai_client() -> AsyncOpenAI:
         api_key=settings.LLM.OPENAI_API_KEY,
         base_url=settings.LLM.OPENAI_BASE_URL,
         timeout=600.0,
+        default_headers=_default_headers_for(settings.LLM.OPENAI_BASE_URL),
     )
 
 
@@ -89,7 +111,12 @@ def get_openai_override_client(
     base_url: str | None, api_key: str | None
 ) -> AsyncOpenAI:
     """OpenAI client for a specific (base_url, api_key) pair. Cached by key."""
-    return AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=600.0)
+    return AsyncOpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=600.0,
+        default_headers=_default_headers_for(base_url),
+    )
 
 
 @lru_cache(maxsize=128)
@@ -127,6 +154,7 @@ if settings.LLM.OPENAI_API_KEY:
         api_key=settings.LLM.OPENAI_API_KEY,
         base_url=settings.LLM.OPENAI_BASE_URL,
         timeout=600.0,
+        default_headers=_default_headers_for(settings.LLM.OPENAI_BASE_URL),
     )
 
 if settings.LLM.GEMINI_API_KEY:
