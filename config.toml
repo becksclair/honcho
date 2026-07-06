@@ -1,0 +1,202 @@
+# Honcho — self-hosted with Codex-backed LLM calls
+#
+# Data sovereignty: all memory/state stays on this VM (PostgreSQL + Redis).
+#
+# LLM STRATEGY:
+#   Text generation, structured output, and tool loops use the native Codex
+#   transport against the ChatGPT Codex endpoint, authenticated from the mounted
+#   Codex auth file in the containers.
+#
+#   Embeddings stay local via Ollama (bge-m3:latest, 1024-dim).
+
+[app]
+LOG_LEVEL = "INFO"
+SESSION_OBSERVERS_LIMIT = 10
+GET_CONTEXT_MAX_TOKENS = 100000
+MAX_FILE_SIZE = 5242880
+MAX_MESSAGE_SIZE = 25000
+EMBED_MESSAGES = true
+MAX_EMBEDDING_TOKENS = 8192
+NAMESPACE = "honcho"
+
+[db]
+CONNECTION_URI = "postgresql+psycopg://honcho:honcho@database:5432/honcho"
+SCHEMA = "public"
+POOL_SIZE = 10
+MAX_OVERFLOW = 20
+POOL_TIMEOUT = 30
+POOL_RECYCLE = 300
+
+[auth]
+USE_AUTH = false
+
+[cache]
+ENABLED = true
+URL = "redis://redis:6379/0?suppress=true"
+DEFAULT_TTL_SECONDS = 300
+
+[llm]
+DEFAULT_MAX_TOKENS = 4000
+MAX_TOOL_OUTPUT_CHARS = 20000
+MAX_MESSAGE_CONTENT_CHARS = 4000
+
+# ---------------------------------------------------------------------------
+# Deriver — observation extraction (runs every message)
+# ---------------------------------------------------------------------------
+[deriver]
+ENABLED = true
+WORKERS = 2
+POLLING_SLEEP_INTERVAL_SECONDS = 1.0
+STALE_SESSION_TIMEOUT_MINUTES = 5
+DEDUPLICATE = true
+LOG_OBSERVATIONS = false
+MAX_INPUT_TOKENS = 25000
+MAX_CUSTOM_INSTRUCTIONS_TOKENS = 2000
+WORKING_REPRESENTATION_MAX_OBSERVATIONS = 200
+REPRESENTATION_BATCH_MAX_TOKENS = 768
+FLUSH_ENABLED = true
+
+[deriver.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+# ---------------------------------------------------------------------------
+# Dialectic — multi-level reasoning for peer.chat
+# ---------------------------------------------------------------------------
+[dialectic]
+MAX_OUTPUT_TOKENS = 8192
+MAX_INPUT_TOKENS = 100000
+HISTORY_TOKEN_LIMIT = 16384
+SESSION_HISTORY_MAX_TOKENS = 8192
+
+[dialectic.levels.minimal]
+MAX_TOOL_ITERATIONS = 1
+MAX_OUTPUT_TOKENS = 350
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.minimal.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+[dialectic.levels.low]
+MAX_TOOL_ITERATIONS = 4
+TOOL_CHOICE = "any"
+
+[dialectic.levels.low.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+[dialectic.levels.medium]
+MAX_TOOL_ITERATIONS = 6
+TOOL_CHOICE = "any"
+
+[dialectic.levels.medium.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+[dialectic.levels.medium.model_config.overrides.provider_params]
+service_tier = "priority"
+
+[dialectic.levels.high]
+MAX_TOOL_ITERATIONS = 8
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.high.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+[dialectic.levels.high.model_config.overrides.provider_params]
+service_tier = "priority"
+
+[dialectic.levels.max]
+MAX_TOOL_ITERATIONS = 12
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.max.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "high"
+
+[dialectic.levels.max.model_config.overrides.provider_params]
+service_tier = "priority"
+
+# ---------------------------------------------------------------------------
+# Summary — session summarization
+# ---------------------------------------------------------------------------
+[summary]
+ENABLED = true
+MESSAGES_PER_SHORT_SUMMARY = 16
+MESSAGES_PER_LONG_SUMMARY = 48
+MAX_TOKENS_SHORT = 1200
+MAX_TOKENS_LONG = 5000
+
+[summary.model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+# ---------------------------------------------------------------------------
+# Dream — memory consolidation (runs rarely)
+# ---------------------------------------------------------------------------
+[dream]
+ENABLED = true
+DOCUMENT_THRESHOLD = 35
+IDLE_TIMEOUT_MINUTES = 30
+MIN_HOURS_BETWEEN_DREAMS = 6
+ENABLED_TYPES = ["omni"]
+MAX_TOOL_ITERATIONS = 30
+HISTORY_TOKEN_LIMIT = 32768
+
+[dream.deduction_model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+[dream.induction_model_config]
+transport = "codex"
+model = "gpt-5.5"
+thinking_effort = "medium"
+
+[dream.surprisal]
+ENABLED = true
+TREE_TYPE = "kdtree"
+TREE_K = 5
+SAMPLING_STRATEGY = "recent"
+SAMPLE_SIZE = 300
+TOP_PERCENT_SURPRISAL = 0.15
+MIN_HIGH_SURPRISAL_FOR_REPLACE = 10
+INCLUDE_LEVELS = ["explicit", "deductive"]
+
+[peer_card]
+ENABLED = true
+
+[vector_store]
+TYPE = "pgvector"
+
+[embedding]
+VECTOR_DIMENSIONS = 1024
+MAX_INPUT_TOKENS = 8192
+MAX_TOKENS_PER_REQUEST = 300000
+
+[embedding.model_config]
+transport = "openai"
+model = "bge-m3:latest"
+dimensions_mode = "never"
+
+[embedding.model_config.overrides]
+api_key = "none"
+base_url = "http://100.120.202.119:11434/v1"
+
+[metrics]
+ENABLED = false
+
+[telemetry]
+ENABLED = false
+
+[sentry]
+ENABLED = false
