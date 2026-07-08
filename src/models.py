@@ -16,6 +16,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    SmallInteger,
     Table,
     UniqueConstraint,
     text,
@@ -499,12 +500,25 @@ class QueueItem(Base):
     message_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("messages.id"), nullable=True
     )
+    attempts: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("0")
+    )
+    next_attempt_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         Index(
             "ix_queue_message_id_not_null",
             "message_id",
             postgresql_where=text("message_id IS NOT NULL"),
+        ),
+        # Partial index to keep the poller's backoff-eligibility predicate cheap:
+        # only pending items participate in retry scheduling.
+        Index(
+            "ix_queue_pending_next_attempt",
+            "next_attempt_at",
+            postgresql_where=text("processed = false"),
         ),
         Index(
             "ix_queue_work_unit_key_processed_id",
@@ -530,6 +544,48 @@ class QueueItem(Base):
 
     def __repr__(self) -> str:
         return f"QueueItem(id={self.id}, session_id={self.session_id}, work_unit_key={self.work_unit_key}, task_type={self.task_type}, payload={self.payload}, processed={self.processed}, workspace_name={self.workspace_name}, message_id={self.message_id})"
+
+
+@final
+class QueueDeadLetter(Base):
+    """Permanent archive of queue items that exhausted their retry budget.
+
+    This is an independent archive table, deliberately free of foreign-key
+    constraints so a dead-letter row survives even after the source ``queue``
+    row (and its referenced session/message/workspace) has been cleaned up.
+    Rows here are inspectable and replayable on demand.
+    """
+
+    __tablename__: str = "queue_dead_letter"
+
+    id: Mapped[str] = mapped_column(TEXT, default=generate_nanoid, primary_key=True)
+    # The source queue.id (queue uses a BigInteger Identity PK). Nullable and
+    # FK-free so the archive persists independently of the working queue.
+    original_queue_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(TEXT, nullable=True)
+    work_unit_key: Mapped[str] = mapped_column(TEXT, nullable=False)
+    task_type: Mapped[str] = mapped_column(TEXT, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    workspace_name: Mapped[str | None] = mapped_column(TEXT, nullable=True)
+    message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    error: Mapped[str | None] = mapped_column(TEXT, nullable=True)
+    first_failed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dead_lettered_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    replayed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"QueueDeadLetter(id={self.id}, original_queue_id={self.original_queue_id}, "
+            f"work_unit_key={self.work_unit_key}, task_type={self.task_type}, "
+            f"attempts={self.attempts}, dead_lettered_at={self.dead_lettered_at})"
+        )
 
 
 @final

@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from nanoid import generate as generate_nanoid
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy import and_, delete, literal, null, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,12 @@ from src.dependencies import tracked_db
 from src.deriver.consumer import (
     process_item,
     process_representation_batch,
+)
+from src.deriver.retry_policy import (
+    compute_backoff,
+    format_error,
+    is_retryable,
+    unwrap_retry_error,
 )
 from src.dreamer.dream_scheduler import (
     DreamScheduler,
@@ -42,6 +48,8 @@ from src.reconciler import (
 )
 from src.schemas import ResolvedConfiguration
 from src.telemetry import prometheus_metrics
+from src.telemetry.events import emit
+from src.telemetry.events.representation import RepresentationDeadLetteredEvent
 from src.telemetry.sentry import initialize_sentry
 from src.utils.work_unit import parse_work_unit_key
 from src.webhooks.events import (
@@ -78,6 +86,20 @@ class QueueBatchResult:
     hit_batch_token_cap: bool = False
     was_flush_enabled: bool = False
     batch_max_tokens: int = 0
+
+
+def _queue_item_eligible_now() -> Any:
+    """SQL predicate: a pending queue item is eligible for processing now.
+
+    An item is eligible when it has no backoff scheduled
+    (``next_attempt_at IS NULL``) or its backoff deadline has already passed.
+    Combine this with ``~QueueItem.processed`` so deferred items are skipped
+    while their retry timer is still in the future.
+    """
+    return or_(
+        models.QueueItem.next_attempt_at.is_(None),
+        models.QueueItem.next_attempt_at <= func.now(),
+    )
 
 
 def _detach_queue_batch_objects(
@@ -355,6 +377,7 @@ class QueueManager:
                     models.QueueItem.message_id == models.Message.id,
                 )
                 .where(~models.QueueItem.processed)
+                .where(_queue_item_eligible_now())
                 .where(models.QueueItem.work_unit_key.startswith(representation_prefix))
                 .group_by(models.QueueItem.work_unit_key)
                 .subquery()
@@ -366,6 +389,7 @@ class QueueManager:
                     func.min(models.QueueItem.created_at).label("oldest_created_at"),
                 )
                 .where(~models.QueueItem.processed)
+                .where(_queue_item_eligible_now())
                 .group_by(models.QueueItem.work_unit_key)
                 .subquery()
             )
@@ -579,9 +603,18 @@ class QueueManager:
         context: str,
     ) -> None:
         """
-        Handle processing errors by marking queue items as errored, logging, and forwarding to Sentry.
-        We only mark the first queue item as errored so we don't potentially throw away a batch. This allows us
-        to incrementally attempt to process the batch while still maintaining progress in a work unit.
+        Handle processing errors for the head item of a failed batch.
+
+        We only act on the first queue item so we don't throw away a whole
+        batch: the remaining items stay pending and are retried on the next
+        loop, preserving poison-isolation. The head item's outcome is either a
+        bounded retry (deferred with exponential backoff) or a permanent
+        dead-letter once it is non-retryable or has exhausted its attempt
+        budget.
+
+        The stored error is the UNWRAPPED cause (via ``retry_policy``), so the
+        durable ``queue.error`` column names the real failure instead of the
+        opaque ``RetryError[<Future ...>]`` wrapper.
 
         Args:
             error: The exception that occurred
@@ -589,24 +622,68 @@ class QueueManager:
             work_unit_key: The work unit key for the queue items
             context: Context string describing what was being processed (e.g., "processing representation batch")
         """
-        error_msg = f"{error.__class__.__name__}: {str(error)}"
-        try:
-            if items:
-                await self.mark_queue_item_as_errored(
-                    items[0], work_unit_key, error_msg
-                )
-        except Exception as mark_error:
-            logger.error(
-                f"Failed to mark queue items as errored for work unit {work_unit_key}: {mark_error}",
-                exc_info=True,
-            )
-
         logger.error(
             f"Error {context} for work unit {work_unit_key}: {error}",
             exc_info=True,
         )
         if settings.SENTRY.ENABLED:
             sentry_sdk.capture_exception(error)
+
+        if not items:
+            return
+
+        item = items[0]
+        cause = unwrap_retry_error(error)
+        message = format_error(cause)
+        attempts = item.attempts + 1
+        should_dead_letter = (
+            not is_retryable(cause)
+            or attempts >= settings.DERIVER.MAX_PROCESSING_ATTEMPTS
+        )
+
+        try:
+            if should_dead_letter:
+                await self.dead_letter_queue_item(
+                    item, work_unit_key, message, attempts
+                )
+            else:
+                delay = compute_backoff(
+                    attempts,
+                    settings.DERIVER.RETRY_BACKOFF_BASE_SECONDS,
+                    settings.DERIVER.RETRY_BACKOFF_MAX_SECONDS,
+                    settings.DERIVER.RETRY_BACKOFF_JITTER,
+                )
+                next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+                await self.defer_queue_item(
+                    item, work_unit_key, message, next_attempt_at, attempts
+                )
+        except Exception as mark_error:
+            logger.error(
+                f"Failed to update queue item state for work unit {work_unit_key}: {mark_error}",
+                exc_info=True,
+            )
+            return
+
+        if should_dead_letter:
+            parsed = parse_work_unit_key(work_unit_key)
+            if (
+                parsed.task_type == "representation"
+                and parsed.workspace_name is not None
+            ):
+                emit(
+                    RepresentationDeadLetteredEvent(
+                        workspace_name=parsed.workspace_name,
+                        session_name=parsed.session_name,
+                        observed=parsed.observed,
+                        message_id=(
+                            str(item.message_id)
+                            if item.message_id is not None
+                            else None
+                        ),
+                        attempts=attempts,
+                        error=message,
+                    )
+                )
 
     async def process_work_unit(self, work_unit_key: str, worker_id: str) -> None:
         """Process all queue items for a specific work unit by routing to the correct handler."""
@@ -781,6 +858,7 @@ class QueueManager:
                 )
                 .where(models.QueueItem.work_unit_key == work_unit_key)
                 .where(~models.QueueItem.processed)
+                .where(_queue_item_eligible_now())
                 .where(*aqs_conditions)
                 .order_by(models.QueueItem.id)
                 .limit(1)
@@ -853,6 +931,7 @@ class QueueManager:
                     models.QueueItem.message_id == models.Message.id,
                 )
                 .where(~models.QueueItem.processed)
+                .where(_queue_item_eligible_now())
                 .where(models.Message.session_name == parsed_key.session_name)
                 .where(models.Message.workspace_name == parsed_key.workspace_name)
                 .where(models.QueueItem.work_unit_key == work_unit_key)
@@ -941,6 +1020,7 @@ class QueueManager:
                     and_(
                         models.QueueItem.work_unit_key == work_unit_key,
                         ~models.QueueItem.processed,
+                        _queue_item_eligible_now(),
                         models.QueueItem.message_id == models.Message.id,
                     ),
                 )
@@ -1086,18 +1166,116 @@ class QueueManager:
                     task_type=work_unit.task_type,
                 )
 
-    async def mark_queue_item_as_errored(
-        self, item: QueueItem, work_unit_key: str, error: str
+    async def defer_queue_item(
+        self,
+        item: QueueItem,
+        work_unit_key: str,
+        error: str,
+        next_attempt_at: datetime,
+        attempts: int,
     ) -> None:
-        """Mark queue item as processed with an error"""
+        """Defer a failed queue item for a later retry with backoff.
+
+        Records the incremented attempt count, the last (unwrapped) error for
+        visibility, and the ``next_attempt_at`` deadline WITHOUT marking the
+        item processed. The polling loop re-picks the item once the deadline
+        passes, so no separate scheduler is needed.
+
+        Args:
+            item: The queue item to defer.
+            work_unit_key: The work unit key owning the item.
+            error: The unwrapped, formatted error string to store for visibility.
+            next_attempt_at: Timezone-aware timestamp before which the item is
+                ineligible for processing.
+            attempts: The new attempt count to persist.
+        """
         if not item:
             return
-        async with tracked_db("mark_queue_item_as_errored") as db:
+        async with tracked_db("defer_queue_item") as db:
             await db.execute(
                 update(models.QueueItem)
                 .where(models.QueueItem.id == item.id)
                 .where(models.QueueItem.work_unit_key == work_unit_key)
-                .values(processed=True, error=error[:65535])  # Truncate to TEXT limit
+                .values(
+                    attempts=attempts,
+                    error=error,
+                    next_attempt_at=next_attempt_at,
+                )
+            )
+            await db.execute(
+                update(models.ActiveQueueSession)
+                .where(models.ActiveQueueSession.work_unit_key == work_unit_key)
+                .values(last_updated=func.now())
+            )
+            await db.commit()
+
+    async def dead_letter_queue_item(
+        self, item: QueueItem, work_unit_key: str, error: str, attempts: int
+    ) -> None:
+        """Archive a queue item permanently and mark the source row processed.
+
+        Terminal writer for a failed queue item (replaces the old
+        ``mark_queue_item_as_errored``). In a single transaction it inserts a
+        ``QueueDeadLetter`` row copying the item's fields, then marks the source
+        ``queue`` row ``processed=True`` with the unwrapped error and final
+        attempt count. The archive has no foreign keys, so it survives the
+        eventual cleanup of the working-queue row.
+
+        Args:
+            item: The queue item to dead-letter.
+            work_unit_key: The work unit key owning the item.
+            error: The unwrapped, formatted error string to store.
+            attempts: The final attempt count that triggered dead-lettering.
+        """
+        if not item:
+            return
+        async with tracked_db("dead_letter_queue_item") as db:
+            # Archive by copying the queue row's columns in SQL (INSERT ... SELECT)
+            # rather than reading them off the ORM instance. This guarantees a
+            # current-row snapshot and keeps the archive independent of the
+            # session's expire_on_commit semantics whether or not `item` is still
+            # attached. `id` is generated here because a model-level Python
+            # default does not fire for from_select.
+            archive_columns = [
+                "id",
+                "original_queue_id",
+                "session_id",
+                "work_unit_key",
+                "task_type",
+                "payload",
+                "workspace_name",
+                "message_id",
+                "attempts",
+                "error",
+                "first_failed_at",
+            ]
+            archive_select = select(
+                literal(generate_nanoid()),
+                models.QueueItem.id,
+                models.QueueItem.session_id,
+                literal(work_unit_key),
+                models.QueueItem.task_type,
+                models.QueueItem.payload,
+                models.QueueItem.workspace_name,
+                models.QueueItem.message_id,
+                literal(attempts),
+                literal(error),
+                null(),
+            ).where(models.QueueItem.id == item.id)
+            await db.execute(
+                insert(models.QueueDeadLetter).from_select(
+                    archive_columns, archive_select
+                )
+            )
+            await db.execute(
+                update(models.QueueItem)
+                .where(models.QueueItem.id == item.id)
+                .where(models.QueueItem.work_unit_key == work_unit_key)
+                .values(
+                    processed=True,
+                    error=error,
+                    attempts=attempts,
+                )
             )
             await db.execute(
                 update(models.ActiveQueueSession)
