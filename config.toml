@@ -42,6 +42,11 @@ MAX_MESSAGE_CONTENT_CHARS = 4000
 # Raised from default 1 to parallelize deriver LLM calls. Honcho's load is
 # bursty, not sustained, so 4 clears bursts without hammering the subscription endpoint.
 CODEX_MAX_CONCURRENT_CALLS = 4
+# The ChatGPT Codex Responses-Lite route exposes GPT-5.6 models only to the
+# supported Codex client identity. Both fields are required; the legacy
+# honcho/honcho identity receives `Model not found` for gpt-5.6-luna.
+CODEX_ORIGINATOR = "codex_exec"
+CODEX_USER_AGENT = "codex_exec/0.144.1"
 
 # ---------------------------------------------------------------------------
 # Deriver — observation extraction (runs every message)
@@ -69,10 +74,10 @@ RETRY_BACKOFF_JITTER = 0.2
 
 [deriver.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
-# Fallback engages on the final retry attempt when the primary (Codex/gpt-5.5)
+# Fallback engages on the final retry attempt when the primary (Codex/gpt-5.6-luna)
 # fails or rate-limits. deepseek-v4-pro on the OpenCode Go endpoint, reached via
 # the OpenAI chat-completions protocol (/zen/go/v1, Bearer auth). Requires
 # structured_output_mode=json_object: deepseek rejects OpenAI strict json_schema.
@@ -103,8 +108,8 @@ TOOL_CHOICE = "auto"
 
 [dialectic.levels.minimal.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 [dialectic.levels.low]
 MAX_TOOL_ITERATIONS = 4
@@ -112,8 +117,8 @@ TOOL_CHOICE = "any"
 
 [dialectic.levels.low.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 [dialectic.levels.medium]
 MAX_TOOL_ITERATIONS = 6
@@ -121,11 +126,11 @@ TOOL_CHOICE = "any"
 
 [dialectic.levels.medium.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 [dialectic.levels.medium.model_config.overrides.provider_params]
-# service_tier = "priority"
+service_tier = "priority"
 
 [dialectic.levels.high]
 MAX_TOOL_ITERATIONS = 8
@@ -133,11 +138,11 @@ TOOL_CHOICE = "auto"
 
 [dialectic.levels.high.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 [dialectic.levels.high.model_config.overrides.provider_params]
-# service_tier = "priority"
+service_tier = "priority"
 
 [dialectic.levels.max]
 MAX_TOOL_ITERATIONS = 12
@@ -145,11 +150,11 @@ TOOL_CHOICE = "auto"
 
 [dialectic.levels.max.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "high"
+model = "gpt-5.6-luna"
+thinking_effort = "max"
 
 [dialectic.levels.max.model_config.overrides.provider_params]
-# service_tier = "priority"
+service_tier = "priority"
 
 # ---------------------------------------------------------------------------
 # Summary — session summarization
@@ -163,8 +168,8 @@ MAX_TOKENS_LONG = 5000
 
 [summary.model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 # ---------------------------------------------------------------------------
 # Dream — memory consolidation (runs rarely)
@@ -180,13 +185,13 @@ HISTORY_TOKEN_LIMIT = 32768
 
 [dream.deduction_model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 [dream.induction_model_config]
 transport = "codex"
-model = "gpt-5.5"
-thinking_effort = "medium"
+model = "gpt-5.6-luna"
+thinking_effort = "xhigh"
 
 [dream.surprisal]
 ENABLED = true
