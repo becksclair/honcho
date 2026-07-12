@@ -10,5 +10,13 @@
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "src/http.ts",
+    "src/stdio.ts",
+    "src/node-config.ts",
+    "src/oauth-provider.ts",
+    "src/oauth-store.ts",
+    "src/**/*.test.ts"
+  ]
 }

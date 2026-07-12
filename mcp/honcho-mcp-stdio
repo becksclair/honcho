@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export HONCHO_API_URL="${HONCHO_API_URL:-http://127.0.0.1:8000}"
+export HONCHO_API_KEY="${HONCHO_API_KEY:-local-dev}"
+export HONCHO_WORKSPACE_ID="${HONCHO_WORKSPACE_ID:-openclaw}"
+export HONCHO_USER_NAME="${HONCHO_USER_NAME:-codex}"
+export HONCHO_ASSISTANT_NAME="${HONCHO_ASSISTANT_NAME:-codex}"
+
+exec bun /home/bex/honcho/mcp/src/stdio.ts

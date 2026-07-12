@@ -135,4 +135,43 @@ class RepresentationCompletedEvent(BaseEvent):
         return f"{self.workspace_name}:{self.session_name}:{self.latest_message_id}"
 
 
-__all__ = ["RepresentationCompletedEvent"]
+class RepresentationDeadLetteredEvent(BaseEvent):
+    """Emitted when a representation task is permanently dead-lettered.
+
+    A representation task reaches this terminal state when it either hits a
+    deterministic, non-retryable failure or exhausts its bounded retry budget.
+    Instead of being silently dropped, the task is archived to the
+    ``queue_dead_letter`` table and this alert event is emitted so operators
+    can see what memory was lost and replay it.
+    """
+
+    _event_type: ClassVar[str] = "representation.dead_lettered"
+    _schema_version: ClassVar[int] = 1
+    _category: ClassVar[str] = "representation"
+
+    # Workspace context
+    workspace_name: str = Field(..., description="Workspace name")
+
+    # Session context
+    session_name: str | None = Field(
+        None, description="Session name, if the task was session-scoped"
+    )
+
+    # Peer context
+    observed: str | None = Field(None, description="Observed peer name, if known")
+
+    # Message context
+    message_id: str | None = Field(
+        None, description="Message ID associated with the dead-lettered task, if known"
+    )
+
+    # Failure info
+    attempts: int = Field(
+        ..., description="Number of processing attempts made before dead-lettering"
+    )
+    error: str = Field(
+        ..., description="Unwrapped final error cause that triggered dead-lettering"
+    )
+
+
+__all__ = ["RepresentationCompletedEvent", "RepresentationDeadLetteredEvent"]

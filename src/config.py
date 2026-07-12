@@ -855,6 +855,17 @@ class DeriverSettings(HonchoSettings):
         int, Field(default=30 * 24 * 3600, gt=0)
     ] = 30 * 24 * 3600  # 30 days default
 
+    # Per-item retry-with-backoff before dead-lettering. When a representation
+    # (or other queue) task fails, it is deferred and retried with exponential
+    # backoff up to MAX_PROCESSING_ATTEMPTS times; after that it is moved to the
+    # permanent queue_dead_letter archive instead of being silently dropped.
+    # Backoff for attempt N is min(BASE * 2**(N-1), MAX) seconds, scaled by a
+    # random jitter factor in [1 - JITTER, 1 + JITTER].
+    MAX_PROCESSING_ATTEMPTS: Annotated[int, Field(default=10, ge=1)] = 10
+    RETRY_BACKOFF_BASE_SECONDS: Annotated[float, Field(default=30.0, gt=0)] = 30.0
+    RETRY_BACKOFF_MAX_SECONDS: Annotated[float, Field(default=7200.0, gt=0)] = 7200.0
+    RETRY_BACKOFF_JITTER: Annotated[float, Field(default=0.2, ge=0.0, le=1.0)] = 0.2
+
     @staticmethod
     def _MODEL_CONFIG_DEFAULT() -> ConfiguredModelSettings:
         # Minimal default: transport + model only. Any other knobs would merge

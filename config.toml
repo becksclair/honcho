@@ -39,13 +39,16 @@ DEFAULT_TTL_SECONDS = 300
 DEFAULT_MAX_TOKENS = 4000
 MAX_TOOL_OUTPUT_CHARS = 20000
 MAX_MESSAGE_CONTENT_CHARS = 4000
+# Raised from default 1 to parallelize deriver LLM calls. Honcho's load is
+# bursty, not sustained, so 4 clears bursts without hammering the subscription endpoint.
+CODEX_MAX_CONCURRENT_CALLS = 4
 
 # ---------------------------------------------------------------------------
 # Deriver — observation extraction (runs every message)
 # ---------------------------------------------------------------------------
 [deriver]
 ENABLED = true
-WORKERS = 2
+WORKERS = 4
 POLLING_SLEEP_INTERVAL_SECONDS = 1.0
 STALE_SESSION_TIMEOUT_MINUTES = 5
 DEDUPLICATE = true
@@ -55,11 +58,34 @@ MAX_CUSTOM_INSTRUCTIONS_TOKENS = 2000
 WORKING_REPRESENTATION_MAX_OBSERVATIONS = 200
 REPRESENTATION_BATCH_MAX_TOKENS = 768
 FLUSH_ENABLED = true
+# Max attempts before a failed queue item is dead-lettered (archived, not dropped)
+MAX_PROCESSING_ATTEMPTS = 10
+# Base delay (seconds) for exponential retry backoff: min(BASE * 2**(n-1), MAX)
+RETRY_BACKOFF_BASE_SECONDS = 30.0
+# Cap (seconds) on the retry backoff delay
+RETRY_BACKOFF_MAX_SECONDS = 7200.0
+# Random jitter fraction applied to each backoff delay ([1-JITTER, 1+JITTER])
+RETRY_BACKOFF_JITTER = 0.2
 
 [deriver.model_config]
 transport = "codex"
 model = "gpt-5.5"
 thinking_effort = "medium"
+
+# Fallback engages on the final retry attempt when the primary (Codex/gpt-5.5)
+# fails or rate-limits. deepseek-v4-pro on the OpenCode Go endpoint, reached via
+# the OpenAI chat-completions protocol (/zen/go/v1, Bearer auth). Requires
+# structured_output_mode=json_object: deepseek rejects OpenAI strict json_schema.
+# Reasoning kept at medium — the right amount for structured extraction.
+[deriver.model_config.fallback]
+transport = "openai"
+model = "deepseek-v4-pro"
+structured_output_mode = "json_object"
+thinking_effort = "medium"
+
+[deriver.model_config.fallback.overrides]
+base_url = "https://opencode.ai/zen/go/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
 
 # ---------------------------------------------------------------------------
 # Dialectic — multi-level reasoning for peer.chat
@@ -99,7 +125,7 @@ model = "gpt-5.5"
 thinking_effort = "medium"
 
 [dialectic.levels.medium.model_config.overrides.provider_params]
-service_tier = "priority"
+# service_tier = "priority"
 
 [dialectic.levels.high]
 MAX_TOOL_ITERATIONS = 8
@@ -111,7 +137,7 @@ model = "gpt-5.5"
 thinking_effort = "medium"
 
 [dialectic.levels.high.model_config.overrides.provider_params]
-service_tier = "priority"
+# service_tier = "priority"
 
 [dialectic.levels.max]
 MAX_TOOL_ITERATIONS = 12
@@ -123,7 +149,7 @@ model = "gpt-5.5"
 thinking_effort = "high"
 
 [dialectic.levels.max.model_config.overrides.provider_params]
-service_tier = "priority"
+# service_tier = "priority"
 
 # ---------------------------------------------------------------------------
 # Summary — session summarization

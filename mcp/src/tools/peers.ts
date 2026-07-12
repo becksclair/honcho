@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "../types.js";
 import { textResult, errorResult } from "../types.js";
+import { canonicalPeerId } from "../peer-identity.js";
 
 export function register(server: McpServer, ctx: ToolContext) {
   // ── create_peer ─────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ export function register(server: McpServer, ctx: ToolContext) {
     },
     async ({ peer_id, configuration }) => {
       try {
-        const peer = await ctx.honcho.peer(peer_id, { configuration });
+        const peer = await ctx.honcho.peer(canonicalPeerId(peer_id), { configuration });
         return textResult({ peer_id: peer.id, configuration: peer.configuration });
       } catch (e) {
         return errorResult(
