@@ -269,3 +269,37 @@ selection, duplicate detection, and dream summaries. Do not paste raw log lines
 into chat or reports. Redact names, IDs, transcripts, locations, exact private
 facts, tokens, and file paths unless the user explicitly asks for raw evidence
 and it is safe to show.
+
+## Fork Carry Contract
+
+This repository is a long-lived fork. `fork-ledger.md` is the single source of
+truth for intentional divergence from upstream. Carry behavior seams, not old
+commits.
+
+For every upstream upgrade:
+
+1. Fetch upstream and choose an exact tag or commit.
+2. Start a dedicated replay branch from that upstream target; never replay on
+   `main`.
+3. Copy the ledger and this contract first, then re-evaluate every seam against
+   the new target.
+4. Reimplement still-required behavior against the target. Do not blindly
+   rebase or cherry-pick the fork's historical commit series.
+5. Run the focused proof named by each seam, then update ledger evidence and
+   absorption decisions before merging.
+
+Baseline closeout checks:
+
+```bash
+python /home/bex/.agents/skills/fork-repo/scripts/validate_fork_ledger.py --repo /home/bex/honcho
+.venv/bin/pytest -q tests/llm/test_backends/test_codex.py tests/llm/test_codex_auth.py tests/llm/test_codex_registry.py tests/llm/test_codex_tool_loop.py
+.venv/bin/pytest -q tests/deriver/test_retry_policy.py tests/deriver/test_queue_retry.py tests/alembic/revisions/test_33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py
+(cd mcp && bun run typecheck:node && bun test)
+python -c 'import tomllib; tomllib.load(open("config.toml", "rb")); print("toml-ok")'
+docker compose config --quiet
+git diff --check
+```
+
+Live proofs involving subscription auth, the production database, public OAuth,
+Cloudflare, service restarts, or memory replay are deliberately deferred until
+the upgrade is deployed to the explicitly authorized operational surface.
