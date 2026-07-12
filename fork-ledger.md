@@ -1,6 +1,6 @@
 # Fork Ledger
 
-This file is Honcho's fork carry contract. The replay unit is behavior, not old commits. Reimplement each seam against current upstream and re-prove the behavior through the runtime, config, or service surface that actually uses it.
+This file is Honcho's fork carry contract for humans, coding agents, and future replay tooling. The replay unit is behavior, not old commits. Reimplement each seam against current upstream and re-prove the behavior through the runtime, config, or service surface that actually uses it.
 
 Current replay target: `upstream-main@602347d76c4e5e464e883f5df32b5bad5aa7952b`
 
@@ -14,7 +14,7 @@ Replay classification:
 
 ## upstream-main@602347d seam necessity review
 
-Replay summary: fork head `17b8676dd94e` contains 13 fork-only commits, including two duplicate-history pairs. They reduce to 11 reviewed behavioral seams: 7 runtime carries and 4 support/proof carries. No seam is currently absorbed by the seeded target.
+Replay summary: runtime fork head `17b8676dd94e7434e103263598924f290913c957` was adopted by ledger commit `2b562212a103859a34bf3bc8e73a9dd9152b92e3`. Its 13 fork-only runtime/support commits, including two duplicate-history pairs, reduce to 13 reviewed behavioral seams: 9 runtime carries and 4 support/proof carries. No seam is currently absorbed by the seeded target.
 
 | Seam | Decision | Importance | upstream-main@602347d evidence / replay note |
 | --- | --- | --- | --- |
@@ -22,22 +22,31 @@ Replay summary: fork head `17b8676dd94e` contains 13 fork-only commits, includin
 | gpt56-responses-lite | Runtime carry | Critical | Fork adds the Responses-Lite header and GPT-5.6 input contract at `src/llm/backends/codex.py:27` and `:405`; target has neither. Review first because upstream or the subscription protocol may absorb/change it. |
 | deriver-retry-durability | Runtime carry | Critical | Fork defers retryable failures with bounded backoff and archives exhausted/non-retryable rows (`src/deriver/queue_manager.py:600`, `src/models.py:549`); target marks failures without this durable state machine. |
 | production-model-policy | Runtime carry | High | `config.toml` and `AGENTS.md` encode the live self-hosted model, tier, effort, concurrency, embedding, and fallback policy consumed by the Docker stack. This is deployment policy, not an upstream default candidate. |
-| chatgpt-oauth-mcp | Runtime carry | Critical | Fork adds stateful Streamable HTTP MCP, OAuth discovery/DCR/PKCE/token persistence, proxy-aware public URLs, fixed ChatGPT identities, and MCP tests; target only has the Worker implementation. |
+| chatgpt-oauth-mcp | Runtime carry | Critical | Fork adds stateful Streamable HTTP MCP, OAuth discovery/DCR/PKCE/token persistence, proxy-aware public URLs, and MCP tests; target only has the Worker implementation. |
+| mcp-peer-identity-normalization | Runtime carry | Critical | `mcp/src/peer-identity.ts:1-12` canonicalizes ChatGPT aliases and shared peer/session tools apply it before writes; target accepts caller-provided peer IDs verbatim. |
+| mcp-conclusion-query-controls | Runtime carry | High | `mcp/src/tools/conclusions.ts:24-58` and `:87-120` add level, pagination, distance, ordering, and returned-level support; target exposes only unfiltered list/query calls. |
 | local-codex-stdio-mcp | Runtime carry | High | Fork adds the local stdio entrypoint with fixed `openclaw`/`codex` identity (`mcp/src/stdio.ts:7`) and wrapper used by standalone Codex. |
 | local-compose-port-isolation | Runtime carry | Medium | `docker-compose.override.yml` deliberately keeps Honcho Postgres off the host's port 5432 so Hindsight can own it. |
 | mcp-identity-data-hygiene | Support/proof carry | Medium | Repeatable SQL repairs merge historical ChatGPT aliases and canonicalize Rebecca Clair / Bex peer-card and conclusion data. Run only against explicitly selected data. |
 | private-memory-importer | Support/proof carry | Medium | Local importer replays OpenClaw private-memory exports into Honcho with the expected workspace and identity conventions. |
-| dream-health-watcher | Support/proof carry | High | Sanitized watcher turns queue state and deriver logs into actionable exit codes without leaking raw memory content. |
+| dream-health-watcher | Support/proof carry | High | Watcher turns queue state and matched deriver log events into actionable exit codes with bounded, best-effort token/identifier redaction; its snippets remain sensitive operator output. |
 | bundled-agent-skills | Support/proof carry | Medium | Fork bundles Honcho inspection/integration and Python/TypeScript migration skills for local agents; duplicate `migrate skills` commits represent one seam. |
 
 ## Replay impact
 
-- Preserve Codex subscription transport and GPT-5.6 Responses-Lite as separate seams: the base transport may remain necessary after the model-specific protocol is absorbed.
-- Preserve deriver retry columns, migration, dead-letter archive, replay path, telemetry, and poison-item isolation as one atomic durability contract.
-- Preserve ChatGPT HTTP MCP and local Codex stdio MCP as separate identity/security boundaries even though they share tool registration.
-- Treat tracked production model settings and Compose isolation as local deployment policy; never replace them wholesale with new upstream defaults.
-- Keep data-repair SQL and memory importer opt-in. Their presence is carried; executing them is not part of an upgrade replay.
-- Revalidate bundled skills and operational documentation after paths, SDK APIs, or commands change upstream.
+- `codex-subscription-transport` - runtime carry: retain subscription-authenticated Codex transport, credential refresh, tool/structured-output support, and registry plumbing without an OpenAI API key.
+- `gpt56-responses-lite` - runtime carry: retain the model-specific Responses-Lite request shape and client identity independently of the base Codex transport.
+- `deriver-retry-durability` - runtime carry: retain retry columns, bounded backoff, dead-letter archive/replay, telemetry, and poison-item isolation as one atomic state-machine contract.
+- `production-model-policy` - runtime carry: retain the tracked model/tier/effort/concurrency/embedding policy consumed by the live self-hosted stack.
+- `chatgpt-oauth-mcp` - runtime carry: retain proxy-aware HTTP MCP plus owner-password OAuth, persisted clients/tokens, and server-side Honcho authorization.
+- `mcp-peer-identity-normalization` - runtime carry: canonicalize ChatGPT aliases before peer creation, session membership, removal, or message ingestion.
+- `mcp-conclusion-query-controls` - runtime carry: expose conclusion level, pagination, distance, ordering, and returned level through MCP.
+- `local-codex-stdio-mcp` - runtime carry: retain local stdio access with the separate `codex` identity boundary.
+- `local-compose-port-isolation` - runtime carry: keep Honcho Postgres private to Compose so another local service can own host port 5432.
+- `mcp-identity-data-hygiene` - support/proof carry: retain opt-in historical alias/peer-card/conclusion repair SQL without executing it during replay.
+- `private-memory-importer` - support/proof carry: retain the OpenClaw private-memory normalization/import utility without replaying production data during upgrades.
+- `dream-health-watcher` - support/proof carry: retain concise queue/log health summaries, best-effort secret/identifier redaction, and stable operator exit codes while treating snippets as sensitive.
+- `bundled-agent-skills` - support/proof carry: retain repo-versioned Honcho inspection, integration, and SDK migration instructions.
 
 ## Seam inventory
 
@@ -53,6 +62,7 @@ Primary seam files:
 - `src/llm/registry.py`
 - `src/llm/types.py`
 - `src/config.py`
+- `.gitignore`
 - `tests/llm/test_backends/test_codex.py`
 - `tests/llm/test_codex_auth.py`
 - `tests/llm/test_codex_registry.py`
@@ -105,12 +115,14 @@ Primary seam files:
 - `src/config.py`
 - `src/telemetry/events/representation.py`
 - `migrations/versions/33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py`
+- `docs/plans/deriver-retry-durability.md`
 - `tests/deriver/test_retry_policy.py`
 - `tests/deriver/test_queue_retry.py`
 
 Primary seam tests:
 
-- `.venv/bin/pytest -q tests/deriver/test_retry_policy.py tests/deriver/test_queue_retry.py tests/alembic/revisions/test_33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py`
+- `python -m py_compile src/deriver/retry_policy.py src/deriver/dead_letter.py src/deriver/queue_manager.py migrations/versions/33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py`
+- Isolated database proof: `.venv/bin/pytest -n 1 -q tests/deriver/test_retry_policy.py tests/deriver/test_queue_retry.py tests/alembic/revisions/test_33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py` with `DB_CONNECTION_URI` pointed at a disposable Postgres instance. Do not point this suite at the live Honcho database.
 - Deferred live proof: inspect queue attempts/`next_attempt_at`, archive a controlled terminal failure, replay it, and verify subsequent work still processes.
 
 Rebase notes:
@@ -128,12 +140,11 @@ Primary seam files:
 - `config.toml`
 - `AGENTS.md`
 - `ROADMAP.md`
-- `.gitignore`
 
 Primary seam tests:
 
 - `python -c 'import tomllib; tomllib.load(open("config.toml", "rb")); print("toml-ok")'`
-- `docker compose config --quiet`
+- `docker compose -f docker-compose.yml.example -f docker-compose.override.yml config --quiet`
 - Deferred live proof: restart only when deploying an upgrade, then read settings from `honcho-api-1` and `honcho-deriver-1` and run `openclaw honcho status`.
 
 Rebase notes:
@@ -153,8 +164,13 @@ Primary seam files:
 - `mcp/src/oauth-provider.ts`
 - `mcp/src/oauth-store.ts`
 - `mcp/src/server.ts`
-- `mcp/src/tools.ts`
-- `mcp/src/peer-identity.ts`
+- `mcp/src/config.ts`
+- `mcp/instructions.md`
+- `mcp/package.json`
+- `mcp/bun.lock`
+- `mcp/tsconfig.json`
+- `mcp/tsconfig.node.json`
+- `mcp/README.md`
 - `mcp/src/http.test.ts`
 - `mcp/src/node-config.test.ts`
 - `mcp/src/oauth-store.test.ts`
@@ -168,8 +184,52 @@ Primary seam tests:
 Rebase notes:
 
 - Source commit: `7d5922df61`.
-- Keep trust at exactly one proxy hop, public HTTPS metadata, redirect allowlisting, token hashing, fixed lowercase identity mapping (`sarah` assistant, `bex` human), and server-side Honcho authorization.
+- External consumers: `/home/bex/personal/dotfiles/configs/dot_config/systemd/user/honcho-mcp.service`, `/home/bex/personal/dotfiles/configs/dot_config/systemd/user/watercooler-cf-tunnel.service`, and `/home/bex/.cloudflared/config.yml` bind the built Node artifact to port 7678 and the public hostname.
+- Keep trust at exactly one proxy hop, public HTTPS metadata, hostname allowlisting during dynamic registration, exact equality with the registered redirect URI during code exchange, token hashing, and server-side Honcho authorization.
 - Drop only if upstream ships an equivalent Node HTTP/OAuth deployment whose security and identity contracts pass these tests.
+
+### mcp-peer-identity-normalization
+
+Carry behavior: peer IDs emitted by ChatGPT are canonicalized at every shared MCP write boundary: `Sarah`/`sarah` become `sarah`, while `Rebecca_Clair`/`Bex`/`bex` become `bex`. Node configuration independently fixes the deployment's human and assistant identities so callers cannot override server authorization or identity defaults.
+
+Primary seam files:
+
+- `mcp/src/peer-identity.ts`
+- `mcp/src/tools/peers.ts`
+- `mcp/src/tools/sessions.ts`
+- `mcp/src/node-config.ts`
+- `mcp/src/peer-identity.test.ts`
+- `mcp/src/node-config.test.ts`
+
+Primary seam tests:
+
+- `cd mcp && bun test`
+- Deferred integration proof: invoke peer creation, session peer add/remove, and message ingestion using every historical alias and inspect the canonical Honcho IDs.
+
+Rebase notes:
+
+- Source commit: `7d5922df61`.
+- Keep normalization in the shared tool layer rather than only the HTTP transport; otherwise aliases can bypass it through another runtime.
+- Drop only when upstream provides configurable canonical peer aliases plus fixed server-side identity with equivalent write-boundary coverage.
+
+### mcp-conclusion-query-controls
+
+Carry behavior: MCP clients can inspect explicit, deductive, or inductive conclusions directly, paginate/reverse list results, constrain semantic-query distance, and receive each conclusion's level in results.
+
+Primary seam files:
+
+- `mcp/src/tools/conclusions.ts`
+
+Primary seam tests:
+
+- `cd mcp && bun run typecheck:node`
+- Deferred integration proof: list and query each conclusion level against a disposable or read-only peer and verify pagination, distance, ordering, and returned `level` fields.
+
+Rebase notes:
+
+- Source commit: `7d5922df61`.
+- Preserve the Honcho SDK argument order and level-filter shape when upgrading the SDK; this seam currently lacks a focused mocked tool test, so the integration proof is mandatory during replay.
+- Drop when upstream's MCP tools expose equivalent filter and result contracts.
 
 ### local-codex-stdio-mcp
 
@@ -204,7 +264,7 @@ Primary seam files:
 
 Primary seam tests:
 
-- `docker compose config --format json | python -c 'import json,sys; p=json.load(sys.stdin)["services"]["database"].get("ports", []); assert p == [], p; print("database-ports-ok")'`
+- `docker compose -f docker-compose.yml.example -f docker-compose.override.yml config --format json | python -c 'import json,sys; p=json.load(sys.stdin)["services"]["database"].get("ports", []); assert p == [], p; print("database-ports-ok")'`
 
 Rebase notes:
 
@@ -225,12 +285,13 @@ Primary seam files:
 
 Primary seam tests:
 
-- Review each script inside a transaction against a database snapshot and inspect affected-row counts before commit.
+- Restore a disposable database snapshot, capture explicit preflight counts, execute the script, inspect post-state and affected invariants, then discard the database. The scripts own and commit their transactions; they cannot be wrapped for review-before-commit.
 
 Rebase notes:
 
 - Source commit: `7d5922df61`.
 - These scripts are repeatable operational records, not automatic startup migrations. Never execute them merely because an upgrade replays the files.
+- Treat every invocation as destructive and self-committing. Require a verified backup/snapshot and a disposable rehearsal before any authorized production use.
 - Retire individual scripts after the relevant data invariant is permanently enforced and no historical environment needs repair.
 
 ### private-memory-importer
@@ -254,7 +315,7 @@ Rebase notes:
 
 ### dream-health-watcher
 
-Carry behavior: operators can detect stalled/failed dream and replay work through sanitized queue/log summaries and stable exit codes without exposing raw private memory.
+Carry behavior: operators can detect stalled/failed dream and replay work through concise queue/log summaries and stable exit codes. The watcher redacts a bounded set of tax IDs, email addresses, UUIDs, and token-like strings, but matched log snippets can still contain private memory and must be handled as sensitive operator output.
 
 Primary seam files:
 
@@ -264,13 +325,13 @@ Primary seam files:
 Primary seam tests:
 
 - `python -m py_compile scripts/watch_dream_health.py`
-- Deferred live proof: `scripts/watch_dream_health.py --since 15m`; preserve exit codes 0/1/2 and sanitized output.
+- Deferred live proof: `scripts/watch_dream_health.py --since 15m`; preserve exit codes 0/1/2, verify known redactors, and inspect output only in a private operator surface.
 
 Rebase notes:
 
 - Source commit: `6421a9d41a`.
-- Update log matchers when upstream changes worker messages or queue schema; privacy redaction is invariant.
-- Keep as local support unless upstream provides equivalent sanitized operational health output.
+- Update log matchers when upstream changes worker messages or queue schema. Best-effort secret/identifier redaction is invariant, but the output is not a privacy boundary.
+- Keep as local support unless upstream provides equivalent concise operational health output.
 
 ### bundled-agent-skills
 
@@ -293,33 +354,35 @@ Rebase notes:
 - Refresh examples and migration deltas when upstream changes SDK versions or repository paths.
 - These are support assets; do not count their conflicts as runtime-product conflicts.
 
+## Upgrade procedure
+
+1. Fetch `upstream`, select an exact tag or commit, and create `backup/pre-replay-TARGET` from the current fork head.
+2. Create a non-`main` replay branch from the exact upstream target ref.
+3. Copy this ledger and the fork contract in `AGENTS.md` onto the replay branch before runtime code.
+4. Re-evaluate every seam against the target and classify it as runtime carry, partial-overlap carry, support/proof carry, absorbed upstream, drop candidate, or pending triage.
+5. Reimplement required behavior in dependency order: model/config foundations, Codex transport, deriver schema/state machine, MCP shared core and transports, deployment policy, then support tooling.
+6. Run each seam's focused proof. Perform deferred live proof only on the authorized deployment surface.
+7. Update evidence, absorption decisions, source/target references, and replay summary before merging.
+
+Never replay the fork by rebasing or cherry-picking its historical commit series wholesale. Never perform an upgrade replay directly on `main`.
+
 ## Narrow validation set
 
 - `python /home/bex/.agents/skills/fork-repo/scripts/validate_fork_ledger.py --repo /home/bex/honcho`
 - `.venv/bin/pytest -q tests/llm/test_backends/test_codex.py tests/llm/test_codex_auth.py tests/llm/test_codex_registry.py tests/llm/test_codex_tool_loop.py tests/llm/test_credentials.py tests/llm/test_model_config.py tests/llm/test_telemetry_llm_call.py`
-- `.venv/bin/pytest -q tests/deriver/test_retry_policy.py tests/deriver/test_queue_retry.py tests/alembic/revisions/test_33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py`
+- `python -m py_compile src/deriver/retry_policy.py src/deriver/dead_letter.py src/deriver/queue_manager.py migrations/versions/33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py`
 - `(cd mcp && bun run typecheck:node && bun test)`
 - `python -m py_compile scripts/import_openclaw_private_memory.py scripts/watch_dream_health.py`
 - `python -c 'import tomllib; tomllib.load(open("config.toml", "rb")); print("toml-ok")'`
-- `docker compose config --quiet`
+- `docker compose -f docker-compose.yml.example -f docker-compose.override.yml config --quiet`
 - `git diff --check`
 
 ## Deferred live proof
 
 - Codex subscription calls require the mounted auth file and active subscription endpoint.
 - Deriver retry/dead-letter proof requires a controlled live queue item and database inspection.
+- The deriver pytest/migration lane requires a disposable Postgres endpoint reachable through `DB_CONNECTION_URI`; the tracked Compose override deliberately does not publish the live database on the host.
 - Public MCP proof requires Cloudflare, OAuth, the user service, and a real ChatGPT connector call.
 - Stdio proof requires the installed local Codex MCP configuration.
-- Memory repair/import scripts require an explicitly selected database or disposable workspace and affected-row review.
+- Memory repair scripts require a verified snapshot, explicit preflight counts, and disposable rehearsal because each script commits its own transaction; import scripts require an explicitly selected disposable workspace.
 - Production config proof requires intentional container restart followed by running-settings and OpenClaw status read-back.
-
-## Upgrade procedure
-
-1. Fetch `upstream`, select an exact tag or commit, and create a non-`main` replay branch from it.
-2. Copy this ledger and the fork contract in `AGENTS.md` onto the replay branch before runtime code.
-3. Re-evaluate every seam against the target and classify it as runtime carry, partial-overlap carry, support/proof carry, or absorbed.
-4. Reimplement required behavior in dependency order: model/config foundations, Codex transport, deriver schema/state machine, MCP shared core and transports, deployment policy, then support tooling.
-5. Run each seam's focused proof. Perform deferred live proof only on the authorized deployment surface.
-6. Update evidence, absorption decisions, source/target references, and replay summary before merging.
-
-Never replay the fork by rebasing or cherry-picking its historical commit series wholesale. Never perform an upgrade replay directly on `main`.

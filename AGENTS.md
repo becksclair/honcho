@@ -215,7 +215,7 @@ The watcher reports:
 - tool-loop cap warnings
 - hard model/request failures
 - Qwen/Alibaba mentions
-- sanitized snippets only
+- best-effort redacted snippets; still treat them as sensitive operator output
 
 Exit codes:
 
@@ -279,13 +279,14 @@ commits.
 For every upstream upgrade:
 
 1. Fetch upstream and choose an exact tag or commit.
-2. Start a dedicated replay branch from that upstream target; never replay on
+2. Create `backup/pre-replay-TARGET` from the current fork head.
+3. Start `fork/replay-TARGET` from that exact upstream target; never replay on
    `main`.
-3. Copy the ledger and this contract first, then re-evaluate every seam against
+4. Copy the ledger and this contract first, then re-evaluate every seam against
    the new target.
-4. Reimplement still-required behavior against the target. Do not blindly
+5. Reimplement still-required behavior against the target. Do not blindly
    rebase or cherry-pick the fork's historical commit series.
-5. Run the focused proof named by each seam, then update ledger evidence and
+6. Run the focused proof named by each seam, then update ledger evidence and
    absorption decisions before merging.
 
 Baseline closeout checks:
@@ -293,13 +294,15 @@ Baseline closeout checks:
 ```bash
 python /home/bex/.agents/skills/fork-repo/scripts/validate_fork_ledger.py --repo /home/bex/honcho
 .venv/bin/pytest -q tests/llm/test_backends/test_codex.py tests/llm/test_codex_auth.py tests/llm/test_codex_registry.py tests/llm/test_codex_tool_loop.py
-.venv/bin/pytest -q tests/deriver/test_retry_policy.py tests/deriver/test_queue_retry.py tests/alembic/revisions/test_33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py
+python -m py_compile src/deriver/retry_policy.py src/deriver/dead_letter.py src/deriver/queue_manager.py migrations/versions/33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py
 (cd mcp && bun run typecheck:node && bun test)
 python -c 'import tomllib; tomllib.load(open("config.toml", "rb")); print("toml-ok")'
-docker compose config --quiet
+docker compose -f docker-compose.yml.example -f docker-compose.override.yml config --quiet
 git diff --check
 ```
 
-Live proofs involving subscription auth, the production database, public OAuth,
-Cloudflare, service restarts, or memory replay are deliberately deferred until
-the upgrade is deployed to the explicitly authorized operational surface.
+The deriver pytest/migration lane requires a disposable Postgres endpoint via
+`DB_CONNECTION_URI`; never aim it at the live Honcho database. Other live proofs
+involving subscription auth, production data, public OAuth, Cloudflare, service
+restarts, or memory replay are deferred until the upgrade reaches the explicitly
+authorized operational surface.
