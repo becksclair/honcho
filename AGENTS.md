@@ -56,11 +56,21 @@ openclaw honcho status
 
 Current live model backbone:
 
-- Deriver: `codex/gpt-5.5` on the normal tier.
-- Summary: `codex/gpt-5.5` on the normal tier.
-- Dream deduction/induction: `codex/gpt-5.5` on the normal tier by default.
-- Dialectic synthesis: `minimal` and `low` stay normal tier; `medium`, `high`,
-  and `max` use `service_tier = "priority"`.
+- Deriver: `codex/gpt-5.6-luna` with `thinking_effort = "xhigh"` on the normal tier.
+- Summary: `codex/gpt-5.6-luna` with `thinking_effort = "xhigh"` on the normal tier.
+- Dream deduction/induction: `codex/gpt-5.6-luna` with
+  `thinking_effort = "xhigh"` on the normal tier by default.
+- Dialectic synthesis: `minimal` through `high` use `codex/gpt-5.6-luna` with
+  `thinking_effort = "xhigh"`; `max` uses the model's highest wire effort,
+  `thinking_effort = "max"`. Codex CLI's `ultra` mode also sends `max` on the
+  wire and adds client-side proactive subagents, which Honcho does not emulate.
+  `minimal` and `low` stay normal tier; `medium`, `high`, and `max` use
+  `service_tier = "priority"`.
+- GPT-5.6 models use the Responses-Lite contract and require the supported
+  Codex client identity: `CODEX_ORIGINATOR = "codex_exec"` and
+  `CODEX_USER_AGENT = "codex_exec/0.144.1"`. With either field left as
+  `honcho`, the ChatGPT subscription endpoint returns `Model not found` for
+  `gpt-5.6-luna` even when the account and Lite request shape are otherwise valid.
 - Local embeddings: `bge-m3:latest` through Ollama-compatible OpenAI API; verify
   the current `base_url` from the running config because it may move between
   Docker-host and Tailscale addresses.

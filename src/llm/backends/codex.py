@@ -24,6 +24,7 @@ from src.llm.structured_output import (
 logger = logging.getLogger(__name__)
 _AUTH_MAX_ATTEMPTS = 2
 _AUTH_RETRY_STATUS_CODES = {401, 403}
+_RESPONSES_LITE_HEADER = "x-openai-internal-codex-responses-lite"
 
 
 class _CodexAuthRetry(Exception):
@@ -69,7 +70,7 @@ class CodexResponsesClient:
             for attempt in range(_AUTH_MAX_ATTEMPTS):
                 try:
                     async with self._semaphore:
-                        headers = await self._headers()
+                        headers = await self._headers(body)
                         if body.get("stream") is True:
                             return await self._stream_response(client, body, headers)
                         response = await client.post(
@@ -95,7 +96,7 @@ class CodexResponsesClient:
                 saw_tool_call = False
                 try:
                     async with self._semaphore:
-                        headers = await self._headers()
+                        headers = await self._headers(body)
                         stream_headers = {**headers, "Accept": "text/event-stream"}
                         async with client.stream(
                             "POST",
@@ -163,15 +164,20 @@ class CodexResponsesClient:
             await self._owned_http_client.aclose()
             self._owned_http_client = None
 
-    async def _headers(self) -> dict[str, str]:
+    async def _headers(self, body: dict[str, Any] | None = None) -> dict[str, str]:
         tokens = await self.auth_manager.get_tokens()
-        return {
+        headers = {
             "Authorization": f"Bearer {tokens.access_token}",
             "chatgpt-account-id": tokens.account_id,
             "originator": self.originator,
             "User-Agent": self.user_agent,
-            "OpenAI-Beta": "responses=experimental",
         }
+        model = body.get("model") if body is not None else None
+        if isinstance(model, str) and _uses_responses_lite(model):
+            headers[_RESPONSES_LITE_HEADER] = "true"
+        else:
+            headers["OpenAI-Beta"] = "responses=experimental"
+        return headers
 
     def _get_http_client(self) -> httpx.AsyncClient:
         if self.http_client is not None:
@@ -409,6 +415,7 @@ def build_codex_responses_request(
 ) -> dict[str, Any]:
     instructions, input_items = convert_messages_to_responses_input(messages)
     reasoning_effort = _reasoning_effort(model, thinking_effort)
+    responses_lite = _uses_responses_lite(model)
     _validate_extra_params(extra_params)
     text: dict[str, Any] = {
         "verbosity": _verbosity(extra_params),
@@ -417,23 +424,47 @@ def build_codex_responses_request(
     if format_param is not None:
         text["format"] = format_param
 
+    converted_tools = convert_tools_to_responses(tools)
+    effective_instructions = instructions or "You are a concise assistant."
+    if responses_lite:
+        prefix: list[dict[str, Any]] = [
+            {
+                "type": "additional_tools",
+                "role": "developer",
+                "tools": converted_tools,
+            }
+        ]
+        if effective_instructions:
+            prefix.append(
+                {
+                    "type": "message",
+                    "role": "developer",
+                    "content": [{"type": "input_text", "text": effective_instructions}],
+                }
+            )
+        input_items = [*prefix, *input_items]
+
     body: dict[str, Any] = {
         "model": model,
         "store": False,
         "stream": True,
         "input": input_items,
         "text": text,
-        "parallel_tool_calls": True,
+        "parallel_tool_calls": not responses_lite,
     }
-    body["instructions"] = instructions or "You are a concise assistant."
+    if not responses_lite:
+        body["instructions"] = effective_instructions
     if temperature is not None:
         body["temperature"] = temperature
     if reasoning_effort is not None:
         body["reasoning"] = {"effort": reasoning_effort}
+        if responses_lite:
+            body["reasoning"]["context"] = "all_turns"
+            body["include"] = ["reasoning.encrypted_content"]
 
-    converted_tools = convert_tools_to_responses(tools)
-    if converted_tools:
+    if converted_tools and not responses_lite:
         body["tools"] = converted_tools
+    if converted_tools or responses_lite:
         body["tool_choice"] = convert_tool_choice(tool_choice)
 
     if extra_params:
@@ -792,7 +823,9 @@ def _decode_sse_data(data: str) -> dict[str, Any] | None:
     try:
         event = json.loads(data)
     except json.JSONDecodeError as exc:
-        raise ValidationException("Codex Responses stream returned invalid JSON") from exc
+        raise ValidationException(
+            "Codex Responses stream returned invalid JSON"
+        ) from exc
     return cast(dict[str, Any], event) if isinstance(event, dict) else None
 
 
@@ -815,7 +848,9 @@ def _validate_extra_params(extra_params: dict[str, Any] | None) -> None:
         "verbosity",
     }
     unsupported = [
-        key for key, value in extra_params.items() if value is not None and key not in allowed
+        key
+        for key, value in extra_params.items()
+        if value is not None and key not in allowed
     ]
     if unsupported:
         raise ValidationException(
@@ -833,6 +868,10 @@ def _reasoning_effort(model: str, thinking_effort: str | None) -> str | None:
             + "use medium or higher"
         )
     return thinking_effort
+
+
+def _uses_responses_lite(model: str) -> bool:
+    return model.startswith("gpt-5.6-")
 
 
 def _convert_response_format(

@@ -1,0 +1,6 @@
+services:
+  database:
+    # Keep Honcho Postgres private to the Compose network.
+    # Hindsight's embedded pg0 can own localhost:5432, and Honcho only needs
+    # the internal DNS name `database:5432` from api/deriver containers.
+    ports: !reset []

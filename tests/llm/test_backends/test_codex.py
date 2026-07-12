@@ -189,6 +189,39 @@ def test_build_codex_responses_request_sets_responses_fields() -> None:
     assert body["prompt_cache_key"] == "test-key"
 
 
+def test_build_codex_responses_lite_request_uses_lite_contract() -> None:
+    body = build_codex_responses_request(
+        model="gpt-5.6-luna",
+        messages=[
+            {"role": "system", "content": "System guardrail"},
+            {"role": "user", "content": "Hello"},
+        ],
+        tools=[
+            {
+                "name": "lookup",
+                "description": "Lookup a test value",
+                "input_schema": {"type": "object"},
+            }
+        ],
+        tool_choice="auto",
+        thinking_effort="max",
+    )
+
+    assert "instructions" not in body
+    assert "tools" not in body
+    assert body["parallel_tool_calls"] is False
+    assert body["tool_choice"] == "auto"
+    assert body["reasoning"] == {"effort": "max", "context": "all_turns"}
+    assert body["include"] == ["reasoning.encrypted_content"]
+    assert body["input"][0]["type"] == "additional_tools"
+    assert body["input"][0]["tools"][0]["name"] == "lookup"
+    assert body["input"][1] == {
+        "type": "message",
+        "role": "developer",
+        "content": [{"type": "input_text", "text": "System guardrail"}],
+    }
+
+
 @pytest.mark.parametrize("thinking_effort", ["minimal", "low"])
 def test_build_codex_responses_request_rejects_cheap_reasoning_for_gpt55(
     thinking_effort: str,
@@ -392,6 +425,8 @@ async def test_codex_client_aggregates_streaming_response(tmp_path: Path) -> Non
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["chatgpt-account-id"] == "fake-account"
+        assert request.headers["x-openai-internal-codex-responses-lite"] == "true"
+        assert "OpenAI-Beta" not in request.headers
         return httpx.Response(200, content=sse)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
@@ -399,7 +434,9 @@ async def test_codex_client_aggregates_streaming_response(tmp_path: Path) -> Non
             auth_manager=CodexAuthManager(auth_file=auth_file),
             http_client=http_client,
         )
-        response = await client.create_response({"stream": True})
+        response = await client.create_response(
+            {"model": "gpt-5.6-luna", "stream": True}
+        )
 
     assert response["status"] == "completed"
     assert response["output"][0]["type"] == "message"
