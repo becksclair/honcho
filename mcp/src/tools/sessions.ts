@@ -8,6 +8,7 @@ import {
   formatMessages,
   formatSessionSummaries,
 } from "../types.js";
+import { canonicalPeerId } from "../peer-identity.js";
 
 export function register(server: McpServer, ctx: ToolContext) {
   // ── create_session ──────────────────────────────────────────────────
@@ -156,13 +157,13 @@ export function register(server: McpServer, ctx: ToolContext) {
       try {
         const session = await ctx.honcho.session(session_id);
         const additions = peers.map((p) => {
-          if (typeof p === "string") return p;
+          if (typeof p === "string") return canonicalPeerId(p);
           const config: { observeMe?: boolean | null; observeOthers?: boolean | null } = {};
           if (p.observe_me !== undefined) config.observeMe = p.observe_me;
           if (p.observe_others !== undefined) config.observeOthers = p.observe_others;
           return Object.keys(config).length > 0
-            ? [p.peer_id, config] as [string, typeof config]
-            : p.peer_id;
+            ? [canonicalPeerId(p.peer_id), config] as [string, typeof config]
+            : canonicalPeerId(p.peer_id);
         });
         await session.addPeers(additions);
         return textResult("Peers added to session successfully");
@@ -191,7 +192,7 @@ export function register(server: McpServer, ctx: ToolContext) {
     async ({ session_id, peer_ids }) => {
       try {
         const session = await ctx.honcho.session(session_id);
-        await session.removePeers(peer_ids);
+        await session.removePeers(peer_ids.map(canonicalPeerId));
         return textResult("Peers removed from session successfully");
       } catch (e) {
         return errorResult(
@@ -294,10 +295,11 @@ export function register(server: McpServer, ctx: ToolContext) {
         const peerCache = new Map<string, Awaited<ReturnType<typeof ctx.honcho.peer>>>();
         const sessionMessages = [];
         for (const msg of messages) {
-          let peer = peerCache.get(msg.peer_id);
+          const peerId = canonicalPeerId(msg.peer_id);
+          let peer = peerCache.get(peerId);
           if (!peer) {
-            peer = await ctx.honcho.peer(msg.peer_id);
-            peerCache.set(msg.peer_id, peer);
+            peer = await ctx.honcho.peer(peerId);
+            peerCache.set(peerId, peer);
           }
           sessionMessages.push(
             msg.metadata

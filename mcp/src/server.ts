@@ -6,11 +6,11 @@ import { register as registerSessionTools } from "./tools/sessions.js";
 import { register as registerConclusionTools } from "./tools/conclusions.js";
 import { register as registerSystemTools } from "./tools/system.js";
 
-export function createServer(ctx: ToolContext): McpServer {
+export function createServer(ctx: ToolContext, instructions?: string): McpServer {
   const server = new McpServer({
     name: "Honcho MCP Server",
     version: "3.0.0",
-  });
+  }, instructions ? { instructions } : undefined);
 
   registerWorkspaceTools(server, ctx);
   registerPeerTools(server, ctx);

@@ -21,27 +21,40 @@ export function register(server: McpServer, ctx: ToolContext) {
           .describe(
             "Optional: list conclusions about this target. Omit for self-conclusions.",
           ),
+        level: z
+          .enum(["explicit", "deductive", "inductive"])
+          .optional()
+          .describe("Optional conclusion level filter."),
+        page: z.number().int().min(1).optional().describe("Page number (1-indexed)."),
+        page_size: z.number().int().min(1).max(100).optional().describe("Results per page."),
+        reverse: z.boolean().optional().describe("Reverse the default conclusion ordering."),
       },
     },
-    async ({ peer_id, target_peer_id }) => {
+    async ({ peer_id, target_peer_id, level, page, page_size, reverse }) => {
       try {
         const peer = await ctx.honcho.peer(peer_id);
         const scope = target_peer_id
           ? peer.conclusionsOf(target_peer_id)
           : peer.conclusions;
-        const page = await scope.list();
+        const resultPage = await scope.list({
+          page,
+          size: page_size,
+          reverse,
+          filters: level ? { level } : undefined,
+        });
         return textResult({
-          conclusions: page.items.map((c) => ({
+          conclusions: resultPage.items.map((c) => ({
             id: c.id,
             content: c.content,
             observer_id: c.observerId,
             observed_id: c.observedId,
             session_id: c.sessionId,
+            level: c.level,
             created_at: c.createdAt,
           })),
-          total: page.total,
-          page: page.page,
-          pages: page.pages,
+          total: resultPage.total,
+          page: resultPage.page,
+          pages: resultPage.pages,
         });
       } catch (e) {
         return errorResult(
@@ -71,15 +84,30 @@ export function register(server: McpServer, ctx: ToolContext) {
           .number()
           .optional()
           .describe("Max results to return."),
+        distance: z
+          .number()
+          .min(0)
+          .max(1)
+          .optional()
+          .describe("Optional maximum cosine distance."),
+        level: z
+          .enum(["explicit", "deductive", "inductive"])
+          .optional()
+          .describe("Optional conclusion level filter."),
       },
     },
-    async ({ peer_id, query, target_peer_id, top_k }) => {
+    async ({ peer_id, query, target_peer_id, top_k, distance, level }) => {
       try {
         const peer = await ctx.honcho.peer(peer_id);
         const scope = target_peer_id
           ? peer.conclusionsOf(target_peer_id)
           : peer.conclusions;
-        const conclusions = await scope.query(query, top_k);
+        const conclusions = await scope.query(
+          query,
+          top_k,
+          distance,
+          level ? { level } : undefined,
+        );
         return textResult(
           conclusions.map((c) => ({
             id: c.id,
@@ -87,6 +115,7 @@ export function register(server: McpServer, ctx: ToolContext) {
             observer_id: c.observerId,
             observed_id: c.observedId,
             session_id: c.sessionId,
+            level: c.level,
             created_at: c.createdAt,
           })),
         );

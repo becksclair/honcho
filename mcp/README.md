@@ -1,6 +1,35 @@
 # Honcho MCP Server
 
-A Cloudflare Worker that implements the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) for [Honcho](https://honcho.dev), providing AI memory and personalization tools to LLM clients like Claude Desktop.
+A dual-runtime Model Context Protocol server for Honcho. It can run as the
+original Cloudflare Worker or as a persistent Node Streamable HTTP server with
+OAuth for ChatGPT.
+
+## ChatGPT deployment
+
+The local production server is available at:
+
+```
+https://honcho.heliasar.com/mcp
+```
+
+The Node runtime terminates MCP OAuth itself and uses server-side Honcho
+credentials. ChatGPT does not need, and cannot override, the fixed deployment
+identity (`openclaw` workspace, `bex` user, `sarah` assistant). ChatGPT aliases
+are normalized at peer creation, session membership, and message ingestion:
+`Sarah` becomes `sarah`, while `Rebecca_Clair` and `Bex` become `bex`.
+
+Build and run it locally with:
+
+```bash
+bun run build:node
+HONCHO_MCP_OAUTH_OWNER_TOKEN='<at-least-16-characters>' \
+  HONCHO_MCP_PUBLIC_BASE_URL='https://honcho.heliasar.com' \
+  bun run start:node
+```
+
+The production user service reads `/home/bex/.config/honcho-mcp/env`. OAuth
+clients and hashed access/refresh tokens persist under
+`~/.local/share/honcho-mcp/`.
 
 ## Quickstart: Use the Hosted Server
 
@@ -54,6 +83,7 @@ src/
   index.ts              # Worker entry point — parse config, delegate to MCP handler
   server.ts             # createServer() — registers all tools on an McpServer
   config.ts             # HonchoConfig, parseConfig(), createClient()
+  peer-identity.ts      # ChatGPT peer alias normalization
   types.ts              # ToolContext, result helpers
   tools/
     workspace.ts        # inspect, list, search, metadata
