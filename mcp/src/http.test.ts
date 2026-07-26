@@ -42,6 +42,12 @@ describe("HTTP MCP", () => {
     expect(response.headers.get("www-authenticate")).toContain("oauth-protected-resource");
   });
 
+  test("rejects the optional standalone SSE stream", async () => {
+    const response = await fetch(`${origin}/mcp`);
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("POST, DELETE");
+  });
+
   test("rejects dynamic clients with unapproved redirect hosts", async () => {
     const response = await fetch(`${origin}/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "bad", redirect_uris: ["https://evil.example/callback"] }) });
     expect(response.status).toBeGreaterThanOrEqual(400);

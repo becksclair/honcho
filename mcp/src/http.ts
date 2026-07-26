@@ -80,6 +80,10 @@ export function createHttpServer(config: NodeConfig = loadNodeConfig()) {
   const transports = new Map<string, Transport>();
 
   app.get("/healthz", (_req, res) => res.json({ ok: true, name: "honcho-mcp" }));
+  app.get("/mcp", (_req, res) => {
+    res.setHeader("Allow", "POST, DELETE");
+    res.sendStatus(405);
+  });
 
   app.all("/mcp", async (req: Request, res: Response) => {
     const denied = await new Promise<boolean>((resolve, reject) => {
