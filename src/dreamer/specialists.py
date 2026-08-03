@@ -99,7 +99,7 @@ class BaseSpecialist(ABC):
 
     def get_max_iterations(self) -> int:
         """Get max tool iterations."""
-        return 15
+        return 20
 
     @abstractmethod
     def build_system_prompt(
@@ -482,7 +482,7 @@ class DeductionSpecialist(BaseSpecialist):
         return 8192
 
     def get_max_iterations(self) -> int:
-        return 12
+        return 20
 
     def build_system_prompt(
         self, observed: str, *, peer_card_enabled: bool = True
@@ -667,7 +667,7 @@ class InductionSpecialist(BaseSpecialist):
         return 8192
 
     def get_max_iterations(self) -> int:
-        return 10
+        return 15
 
     def build_system_prompt(
         self, observed: str, *, peer_card_enabled: bool = True
