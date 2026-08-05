@@ -19,6 +19,7 @@ from src.dependencies import db, read_db, tracked_db
 from src.dialectic.chat import agentic_chat, agentic_chat_stream
 from src.embedding_client import embedding_client
 from src.exceptions import AuthenticationException, ResourceNotFoundException
+from src.identity import resolve_peer_id
 from src.security import JWTParams, require_auth
 from src.telemetry import prometheus_metrics
 from src.telemetry.events import EmbeddingCallPurpose, GetContextEvent, emit
@@ -85,13 +86,19 @@ async def get_or_create_peer(
         raise AuthenticationException("Unauthorized access to resource")
 
     if peer.name:
-        if not jwt_params.ad and jwt_params.p is not None and jwt_params.p != peer.name:
+        peer.name = await resolve_peer_id(db, workspace_id, peer.name)
+        jwt_peer = (
+            await resolve_peer_id(db, workspace_id, jwt_params.p)
+            if jwt_params.p is not None
+            else None
+        )
+        if not jwt_params.ad and jwt_peer is not None and jwt_peer != peer.name:
             raise AuthenticationException("Unauthorized access to resource")
     else:
         # Use peer_id from JWT
         if not jwt_params.p:
             raise AuthenticationException("Peer ID not found in query parameter or JWT")
-        peer.name = jwt_params.p
+        peer.name = await resolve_peer_id(db, workspace_id, jwt_params.p)
     result = await crud.get_or_create_peers(
         db, workspace_name=workspace_id, peers=[peer]
     )
@@ -145,6 +152,7 @@ async def get_sessions_for_peer(
         if filter_param == {}:
             filter_param = None
 
+    peer_id = await resolve_peer_id(db, workspace_id, peer_id)
     return await apaginate(
         db,
         await crud.get_sessions_for_peer(
@@ -269,6 +277,7 @@ async def get_representation(
     options: schemas.PeerRepresentationGet = Body(
         ..., description="Options for getting the peer representation"
     ),
+    db: AsyncSession = read_db,
 ):
     """Get a curated subset of a Peer's Representation. A Representation is always a subset of the total
     knowledge about the Peer. The subset can be scoped and filtered in various ways.
@@ -279,6 +288,12 @@ async def get_representation(
     If no target is provided, we get the omniscient Honcho Representation of the Peer.
     """
     try:
+        peer_id = await resolve_peer_id(db, workspace_id, peer_id)
+        observed = await resolve_peer_id(
+            db,
+            workspace_id,
+            options.target if options.target is not None else peer_id,
+        )
         embedding: list[float] | None = None
         if options.search_query:
             with (
@@ -295,7 +310,7 @@ async def get_representation(
         representation = await crud.get_working_representation(
             workspace_id,
             observer=peer_id,
-            observed=options.target if options.target is not None else peer_id,
+            observed=observed,
             session_name=options.session_id,
             include_semantic_query=options.search_query,
             embedding=embedding,
@@ -338,8 +353,10 @@ async def get_peer_card(
     Returns the peer card that the observer peer has for the target peer if it exists.
     If no target is specified, returns the observer's own peer card.
     """
-    # If no target specified, get the observer's own card
-    observed = target if target is not None else peer_id
+    peer_id = await resolve_peer_id(db, workspace_id, peer_id)
+    observed = await resolve_peer_id(
+        db, workspace_id, target if target is not None else peer_id
+    )
 
     peer_card = await crud.get_peer_card(
         db, workspace_id, observer=peer_id, observed=observed
@@ -371,8 +388,10 @@ async def set_peer_card(
     Sets the peer card that the observer peer has for the target peer.
     If no target is specified, sets the observer's own peer card.
     """
-    # If no target specified, set the observer's own card
-    observed = target if target is not None else peer_id
+    peer_id = await resolve_peer_id(db, workspace_id, peer_id)
+    observed = await resolve_peer_id(
+        db, workspace_id, target if target is not None else peer_id
+    )
 
     await crud.set_peer_card(
         db,
@@ -437,8 +456,15 @@ async def get_peer_context(
     This is useful for getting all the context needed about a peer without
     making multiple API calls.
     """
-    # If no target specified, get the peer's own context (self-observation)
-    observed = target if target is not None else peer_id
+    async with tracked_db(
+        "peers.get_peer_context.identity", read_only=True
+    ) as identity_db:
+        peer_id = await resolve_peer_id(identity_db, workspace_id, peer_id)
+        observed = await resolve_peer_id(
+            identity_db,
+            workspace_id,
+            target if target is not None else peer_id,
+        )
     context_started = perf_counter()
 
     try:
@@ -520,8 +546,10 @@ async def search_peer(
         ...,
         description="Message search parameters. Use `limit` to control the number of results returned.",
     ),
+    db: AsyncSession = read_db,
 ):
     """Search a Peer's messages, optionally filtered by various criteria."""
+    peer_id = await resolve_peer_id(db, workspace_id, peer_id)
     # take user-provided filter and add workspace_id and peer_id to it
     filters = body.filters or {}
     filters["workspace_id"] = workspace_id

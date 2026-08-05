@@ -12,6 +12,7 @@ from src.config import settings
 from src.dependencies import db, read_db
 from src.deriver.enqueue import enqueue_deletion, enqueue_dream
 from src.exceptions import AuthenticationException
+from src.identity import resolve_peer_id
 from src.security import JWTParams, require_auth
 from src.utils.search import search
 
@@ -144,13 +145,17 @@ async def search_workspace(
     body: schemas.MessageSearchOptions = Body(
         ..., description="Message search parameters"
     ),
+    db: AsyncSession = read_db,
 ):
     """
     Search messages in a Workspace using optional filters. Use `limit` to control the number of
     results returned.
     """
-    # take user-provided filter and add workspace_id to it
-    filters = body.filters or {}
+    # Canonicalize peer-scoped filters before handing them to the search layer.
+    filters = (body.filters or {}).copy()
+    for key in ("peer_id", "peer_name"):
+        if key in filters:
+            filters[key] = await resolve_peer_id(db, workspace_id, filters[key])
     filters["workspace_id"] = workspace_id
     return await search(body.query, filters=filters, limit=body.limit)
 
@@ -181,6 +186,10 @@ async def get_queue_status(
     not lifetime totals.
     """
     try:
+        if observer_id is not None:
+            observer_id = await resolve_peer_id(db, workspace_id, observer_id)
+        if sender_id is not None:
+            sender_id = await resolve_peer_id(db, workspace_id, sender_id)
         return await crud.get_queue_status(
             db,
             workspace_name=workspace_id,
@@ -203,6 +212,7 @@ async def schedule_dream(
     request: schemas.ScheduleDreamRequest = Body(
         ..., description="Dream scheduling parameters"
     ),
+    db: AsyncSession = read_db,
 ):
     """
     Manually schedule a dream task for a specific collection.
@@ -220,9 +230,13 @@ async def schedule_dream(
             detail="Dreams are not enabled in the system configuration",
         )
 
-    # Default observed to observer if not provided
-    observer = request.observer
-    observed = request.observed if request.observed is not None else request.observer
+    # Default observed to observer if not provided, then canonicalize both.
+    observer = await resolve_peer_id(db, workspace_id, request.observer)
+    observed = await resolve_peer_id(
+        db,
+        workspace_id,
+        request.observed if request.observed is not None else request.observer,
+    )
     dream_type = request.dream_type
 
     await enqueue_dream(

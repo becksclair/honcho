@@ -20,6 +20,7 @@ from src.exceptions import (
     ResourceNotFoundException,
     ValidationException,
 )
+from src.identity import resolve_peer_id
 from src.security import JWTParams, require_auth
 from src.telemetry.events import EmbeddingCallPurpose, GetContextEvent, emit
 from src.utils import summarizer
@@ -556,6 +557,7 @@ async def get_peer_config(
     read its own per-session config — not a co-member's. Workspace/admin and
     session-scoped tokens (which already span the whole session) are unaffected.
     """
+    peer_id = await resolve_peer_id(db, workspace_id, peer_id)
     if jwt_params.p is not None and jwt_params.p != peer_id:
         raise AuthenticationException("JWT not permissioned for this resource")
     return await crud.get_peer_config(
@@ -742,8 +744,8 @@ async def get_session_context(
         )
         return response
 
-    observer = peer_perspective or peer_target
-    observed = peer_target
+    observer = await resolve_peer_id(db, workspace_id, peer_perspective or peer_target)
+    observed = await resolve_peer_id(db, workspace_id, peer_target)
 
     # Pre-compute embedding outside the DB session (best-effort)
     embedding: list[float] | None = None

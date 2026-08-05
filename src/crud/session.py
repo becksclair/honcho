@@ -28,6 +28,7 @@ from src.exceptions import (
     ObserverException,
     ResourceNotFoundException,
 )
+from src.identity import resolve_peer_id, resolve_peer_ids, resolve_peer_mapping
 from src.utils.filter import apply_filter
 from src.utils.types import GetOrCreateResult
 from src.vector_store import get_external_vector_store
@@ -194,6 +195,12 @@ async def get_or_create_session(
                 f"Session {session.name} not found in workspace {workspace_name}"
             )
 
+    canonical_peer_names = (
+        await resolve_peer_mapping(db, workspace_name, session.peer_names)
+        if session.peer_names
+        else {}
+    )
+
     # Track if we need to update cache and if session was created
     needs_cache_update = False
     created = False
@@ -202,9 +209,9 @@ async def get_or_create_session(
 
     # Check if session already exists
     if honcho_session is None:
-        if session.peer_names:
+        if canonical_peer_names:
             # Count peers that will be observing others
-            observer_count = count_observers_in_config(session.peer_names)
+            observer_count = count_observers_in_config(canonical_peer_names)
             if observer_count > settings.SESSION_OBSERVERS_LIMIT:
                 raise ObserverException(session.name, observer_count)
 
@@ -256,19 +263,19 @@ async def get_or_create_session(
                 needs_cache_update = True
 
     # Add all peers to session
-    if session.peer_names:
+    if canonical_peer_names:
         peers_result = await get_or_create_peers(
             db,
             workspace_name=workspace_name,
             peers=[
-                schemas.PeerCreate(name=peer_name) for peer_name in session.peer_names
+                schemas.PeerCreate(name=peer_name) for peer_name in canonical_peer_names
             ],
         )
         await _get_or_add_peers_to_session(
             db,
             workspace_name=workspace_name,
             session_name=session.name,
-            peer_names=session.peer_names,
+            peer_names=canonical_peer_names,
             fetch_after_upsert=False,
         )
 
@@ -783,6 +790,8 @@ async def remove_peers_from_session(
     Raises:
         ResourceNotFoundException: If the session does not exist
     """
+    peer_names = set(await resolve_peer_ids(db, workspace_name, peer_names))
+
     # Verify session exists
     await get_session(db, session_name, workspace_name)
 
@@ -855,6 +864,7 @@ async def is_peer_in_session(
     Returns:
         True if the peer is currently a member of the session.
     """
+    peer_name = await resolve_peer_id(db, workspace_name, peer_name)
     result = await db.scalar(
         select(models.SessionPeer.peer_name)
         .where(models.SessionPeer.workspace_name == workspace_name)
@@ -926,6 +936,8 @@ async def set_peers_for_session(
     Raises:
         ResourceNotFoundException: If the session does not exist
     """
+    peer_names = await resolve_peer_mapping(db, workspace_name, peer_names)
+
     # Validate observer limit before making any changes
     observer_count = count_observers_in_config(peer_names)
     if observer_count > settings.SESSION_OBSERVERS_LIMIT:
@@ -1111,6 +1123,8 @@ async def get_peer_config(
     Raises:
         ResourceNotFoundException: If the session or peer does not exist
     """
+    peer_id = await resolve_peer_id(db, workspace_name, peer_id)
+
     # Get row from session_peer table
     stmt = select(models.SessionPeer).where(
         models.SessionPeer.workspace_name == workspace_name,
@@ -1148,6 +1162,8 @@ async def set_peer_config(
     Raises:
         ObserverException: If the update would exceed the observer limit
     """
+    peer_name = await resolve_peer_id(db, workspace_name, peer_name)
+
     # First, get the session and peer to ensure they exist
     await get_session(db, session_name, workspace_name)
     await get_peer(db, workspace_name, schemas.PeerCreate(name=peer_name))

@@ -5,8 +5,10 @@ from pydantic import ValidationError
 
 from src.config import settings
 from src.schemas import (
+    DialecticConfiguration,
     DocumentCreate,
     DocumentMetadata,
+    IdentityConfiguration,
     MessageCreate,
     PeerCreate,
     ReasoningConfiguration,
@@ -205,6 +207,34 @@ class TestResolvedConfigurationMigration:
             ResolvedConfiguration.model_validate(payload)
 
         assert any(e["loc"] == ("reasoning",) for e in exc_info.value.errors())
+
+
+class TestIdentityConfiguration:
+    def test_rejects_noncanonical_alias_target(self) -> None:
+        with pytest.raises(ValidationError, match="canonical lowercase peer ID"):
+            IdentityConfiguration(aliases={"Codex": "Kate"})
+
+    def test_normalizes_alias_keys(self) -> None:
+        configuration = IdentityConfiguration(
+            aliases={" BEX ": "bex", "Rebecca_Clair": "bex"}
+        )
+
+        assert configuration.aliases == {
+            "bex": "bex",
+            "rebecca_clair": "bex",
+        }
+
+
+class TestDialecticRecallConfiguration:
+    def test_rejects_empty_recall_observer_allowlist(self) -> None:
+        with pytest.raises(ValidationError, match="recall_observers cannot be empty"):
+            DialecticConfiguration(recall_observers=[])
+
+    def test_rejects_duplicate_recall_observers(self) -> None:
+        with pytest.raises(
+            ValidationError, match="recall_observers cannot contain duplicates"
+        ):
+            DialecticConfiguration(recall_observers=["sarah", "sarah"])
 
 
 class TestReasoningCustomInstructionsValidation:

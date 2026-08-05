@@ -13,7 +13,16 @@ from src import models, schemas
 from src.cache.client import cache, get_cache_namespace, safe_cache_delete
 from src.config import settings
 from src.crud.workspace import get_or_create_workspace
-from src.exceptions import ConflictException, ResourceNotFoundException
+from src.exceptions import (
+    ConflictException,
+    ResourceNotFoundException,
+    ValidationException,
+)
+from src.identity import (
+    canonicalize_peer_id,
+    get_identity_configuration,
+    resolve_peer_id,
+)
 from src.models import Peer
 from src.utils.filter import apply_filter
 from src.utils.types import GetOrCreateResult
@@ -61,6 +70,37 @@ async def get_or_create_peers(
     """
 
     await get_or_create_workspace(db, schemas.WorkspaceCreate(name=workspace_name))
+    identity_configuration = await get_identity_configuration(db, workspace_name)
+
+    canonical_peer_map: dict[str, schemas.PeerCreate] = {}
+    for peer in peers:
+        canonical_name = canonicalize_peer_id(peer.name, identity_configuration)
+        canonical_peer = peer.model_copy(update={"name": canonical_name})
+        existing = canonical_peer_map.get(canonical_name)
+        if existing is None:
+            canonical_peer_map[canonical_name] = canonical_peer
+            continue
+
+        if (
+            existing.metadata is not None
+            and canonical_peer.metadata is not None
+            and existing.metadata != canonical_peer.metadata
+        ) or (
+            existing.configuration is not None
+            and canonical_peer.configuration is not None
+            and existing.configuration != canonical_peer.configuration
+        ):
+            raise ValidationException(
+                f"Conflicting peer payloads resolve to canonical identity {canonical_name!r}"
+            )
+        canonical_peer_map[canonical_name] = existing.model_copy(
+            update={
+                "metadata": existing.metadata or canonical_peer.metadata,
+                "configuration": existing.configuration or canonical_peer.configuration,
+            }
+        )
+
+    peers = list(canonical_peer_map.values())
     peer_names = [p.name for p in peers]
     stmt = (
         select(models.Peer)
@@ -196,10 +236,11 @@ async def get_peer(
     Raises:
         ResourceNotFoundException: If the peer does not exist
     """
-    data = await _fetch_peer(db, workspace_name, peer.name)
+    canonical_name = await resolve_peer_id(db, workspace_name, peer.name)
+    data = await _fetch_peer(db, workspace_name, canonical_name)
     if data is None:
         raise ResourceNotFoundException(
-            f"Peer {peer.name} not found in workspace {workspace_name}"
+            f"Peer {canonical_name} not found in workspace {workspace_name}"
         )
 
     # Reconstruct ORM object from cached dict and merge into session

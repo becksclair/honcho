@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import crud, models, schemas
 from src.config import settings
 from src.dependencies import tracked_db
+from src.dialectic.retrieval import retrieve_memory_evidence
 from src.embedding_client import embedding_client
 from src.models import Document
 from src.schemas import ResolvedConfiguration
@@ -1112,6 +1113,7 @@ async def get_observation_context(
     session_name: str | None,
     message_ids: list[str],
     observer: str | None = None,
+    observers: Sequence[str] | None = None,
 ) -> list[models.Message]:
     """
     Retrieve messages for given message IDs along with surrounding context.
@@ -1125,8 +1127,8 @@ async def get_observation_context(
         workspace_name: Workspace identifier
         session_name: Session identifier (optional)
         message_ids: List of message IDs to retrieve
-        observer: When provided and session_name is None, scope results
-            to sessions this peer belongs to
+        observer: Backward-compatible single-peer session scope
+        observers: Optional multi-peer session scope; takes precedence over observer
 
     Returns:
         List of messages in chronological order, including the requested messages and surrounding context
@@ -1136,18 +1138,21 @@ async def get_observation_context(
 
     # Pre-fetch peer session scope if needed
     allowed_session_names: list[str] | None = None
-    if observer and not session_name:
+    scope_peers: Sequence[str] | None = observers
+    if scope_peers is None and observer is not None:
+        scope_peers = (observer,)
+    if scope_peers and not session_name:
         from src.crud.message import get_peer_session_names
 
         allowed_session_names = await get_peer_session_names(
-            db, workspace_name, observer
+            db, workspace_name, scope_peers
         )
         if not allowed_session_names:
             return []
 
-    # Use a CTE to get seq_in_session values for target messages
+    # Keep session_name with seq_in_session so adjacency never crosses sessions.
     stmt = (
-        select(models.Message.seq_in_session)
+        select(models.Message.session_name, models.Message.seq_in_session)
         .where(models.Message.workspace_name == workspace_name)
         .where(models.Message.public_id.in_(message_ids))
     )
@@ -1166,6 +1171,7 @@ async def get_observation_context(
         .where(models.Message.workspace_name == workspace_name)
         .where(
             select(target_seqs_cte.c.seq_in_session)
+            .where(target_seqs_cte.c.session_name == models.Message.session_name)
             .where(
                 (
                     target_seqs_cte.c.seq_in_session - models.Message.seq_in_session
@@ -1173,7 +1179,10 @@ async def get_observation_context(
             )
             .exists()
         )
-        .order_by(models.Message.seq_in_session.asc())
+        .order_by(
+            models.Message.session_name.asc(),
+            models.Message.seq_in_session.asc(),
+        )
     )
 
     if session_name:
@@ -1282,12 +1291,21 @@ class ToolContext:
     # This lock is obtained from the module-level registry to ensure all concurrent
     # tool executors for the same data share the same lock.
     db_lock: asyncio.Lock
+    # Observer collections eligible for read-time recall. Writes always use observer.
+    recall_observers: tuple[str, ...] | None = None
     # Optional resolved configuration for checking feature flags
     configuration: ResolvedConfiguration | None = None
     # Telemetry context fields
     run_id: str | None = None
     agent_type: str | None = None  # "dialectic", "deriver", "dreamer"
     parent_category: str | None = None  # Parent category for CloudEvents
+
+
+def _message_recall_scope(ctx: ToolContext) -> dict[str, tuple[str, ...]]:
+    """Return the optional collective message-scope keyword."""
+    if ctx.recall_observers is None:
+        return {}
+    return {"observers": ctx.recall_observers}
 
 
 def _normalize_observation_id(obs_id: str) -> str:
@@ -1683,17 +1701,30 @@ async def _handle_search_memory(
         "query_tokens": _estimate_tokens_safe(query),
     }
 
-    documents = await crud.query_documents(
-        db=None,
-        workspace_name=ctx.workspace_name,
-        observer=ctx.observer,
-        observed=ctx.observed,
-        query=query,
-        top_k=top_k,
-        embedding=query_embedding,
-    )
-    mem = Representation.from_documents(documents)
-    total_count = mem.len()
+    if ctx.agent_type == "dialectic":
+        evidence = await retrieve_memory_evidence(
+            workspace_name=ctx.workspace_name,
+            observers=ctx.recall_observers or (ctx.observer,),
+            observed=ctx.observed,
+            query=query,
+            limit=top_k,
+            embedding=query_embedding,
+        )
+        total_count = len(evidence)
+        mem_str = evidence.format_as_markdown(include_ids=ctx.include_observation_ids)
+    else:
+        documents = await crud.query_documents(
+            db=None,
+            workspace_name=ctx.workspace_name,
+            observer=ctx.observer,
+            observed=ctx.observed,
+            query=query,
+            top_k=top_k,
+            embedding=query_embedding,
+        )
+        mem = Representation.from_documents(documents)
+        total_count = mem.len()
+        mem_str = mem.str_with_ids() if ctx.include_observation_ids else str(mem)
     if total_count == 0:
         # Empty-memory fallback: if the memory is *empty*, that means we're
         # quite early in a workspace/peer/session -- in order to give good
@@ -1713,6 +1744,7 @@ async def _handle_search_memory(
                 context_window=0,
                 embedding=query_embedding,
                 observer=ctx.observer,
+                **_message_recall_scope(ctx),
             )
             if snippets:
                 message_output = _format_message_snippets(
@@ -1735,8 +1767,8 @@ async def _handle_search_memory(
             content=f"No observations found for query '{query}'",
             metadata=zero_hit_meta,
         )
-    mem_str = mem.str_with_ids() if ctx.include_observation_ids else str(mem)
     search_meta["results_count"] = total_count
+    search_meta["source_observer_count"] = len(ctx.recall_observers or (ctx.observer,))
     return ToolResult(
         content=f"Found {total_count} observations for query '{query}':\n\n{mem_str}",
         metadata=search_meta,
@@ -1754,6 +1786,7 @@ async def _handle_get_observation_context(
             session_name=ctx.session_name,
             message_ids=tool_input["message_ids"],
             observer=ctx.observer,
+            **_message_recall_scope(ctx),
         )
         if not messages:
             return f"No messages found for IDs {tool_input['message_ids']}"
@@ -1796,6 +1829,7 @@ async def _handle_search_messages(
         context_window=2,
         embedding=query_embedding,
         observer=ctx.observer,
+        **_message_recall_scope(ctx),
     )
     search_meta: dict[str, Any] = {
         "top_k": limit,
@@ -1832,6 +1866,7 @@ async def _handle_grep_messages(
         limit=limit,
         context_window=context_window,
         observer=ctx.observer,
+        **_message_recall_scope(ctx),
     )
     if not snippets:
         return f"No messages found containing '{text}'"
@@ -1896,6 +1931,7 @@ async def _handle_get_messages_by_date_range(
             limit=limit,
             order=order,
             observer=ctx.observer,
+            **_message_recall_scope(ctx),
         )
         msg_count = len(messages)
         messages_text = (
@@ -1970,6 +2006,7 @@ async def _handle_search_messages_temporal(
         context_window=context_window,
         embedding=query_embedding,
         observer=ctx.observer,
+        **_message_recall_scope(ctx),
     )
     date_filter: list[str] = []
     if after_date_str:
@@ -2295,8 +2332,8 @@ async def _handle_get_reasoning_chain(
                 db,
                 ctx.workspace_name,
                 observation_id,
-                observer=ctx.observer,
-                observed=ctx.observed,
+                observer=doc.observer,
+                observed=doc.observed,
             )
             if children:
                 child_lines: list[Any] = []
@@ -2341,6 +2378,7 @@ async def create_tool_executor(
     workspace_name: str,
     observer: str,
     observed: str,
+    recall_observers: Sequence[str] | None = None,
     session_name: str | None = None,
     current_messages: list[models.Message] | None = None,
     include_observation_ids: bool = False,
@@ -2363,6 +2401,7 @@ async def create_tool_executor(
         workspace_name: Workspace identifier
         observer: The peer making observations/queries
         observed: The peer being observed/queried about
+        recall_observers: Observer collections eligible for read-time recall
         session_name: Session identifier (optional for global queries)
         current_messages: List of current messages being processed (optional, for deriver)
         include_observation_ids: If True, include observation IDs in output (for dreamer agent)
@@ -2388,6 +2427,7 @@ async def create_tool_executor(
         include_observation_ids=include_observation_ids,
         history_token_limit=history_token_limit,
         db_lock=shared_lock,
+        recall_observers=tuple(recall_observers) if recall_observers else (observer,),
         configuration=configuration,
         run_id=run_id,
         agent_type=agent_type,

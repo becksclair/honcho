@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from collections.abc import Sequence
 from logging import getLogger
@@ -258,6 +259,64 @@ async def query_external_vector_document_ids(
     return [result.id for result in vector_results]
 
 
+async def query_external_vector_document_ids_for_observers(
+    workspace_name: str,
+    observers: Sequence[str],
+    observed: str,
+    embedding: list[float],
+    top_k: int = 5,
+    max_distance: float | None = None,
+    filters: dict[str, Any] | None = None,
+) -> list[str] | None:
+    """Query observer namespaces and merge results by vector distance."""
+    if _uses_pgvector():
+        return None
+
+    external_vector_store = get_external_vector_store()
+    if external_vector_store is None or not observers:
+        return []
+
+    vector_filters: dict[str, Any] = {}
+    if filters:
+        for key in ["level", "session_name"]:
+            if key in filters:
+                vector_filters[key] = filters[key]
+
+    async def query_observer(observer: str) -> list[tuple[float, str]]:
+        namespace = external_vector_store.get_vector_namespace(
+            "document", workspace_name, observer, observed
+        )
+        results = await external_vector_store.query(
+            namespace,
+            embedding,
+            top_k=top_k,
+            max_distance=max_distance,
+            filters=vector_filters if vector_filters else None,
+            include_attributes=False,
+        )
+        return [(result.score, result.id) for result in results]
+
+    ranked_results = [
+        item
+        for observer_results in await asyncio.gather(
+            *(query_observer(observer) for observer in observers)
+        )
+        for item in observer_results
+    ]
+    ranked_results.sort(key=lambda item: (item[0], item[1]))
+
+    seen: set[str] = set()
+    document_ids: list[str] = []
+    for _, document_id in ranked_results:
+        if document_id in seen:
+            continue
+        seen.add(document_id)
+        document_ids.append(document_id)
+        if len(document_ids) >= top_k:
+            break
+    return document_ids
+
+
 async def fetch_documents_by_ids(
     db: AsyncSession,
     workspace_name: str,
@@ -286,38 +345,157 @@ async def fetch_documents_by_ids(
     return [documents[doc_id] for doc_id in document_ids if doc_id in documents]
 
 
-async def _query_documents_pgvector(
+async def fetch_documents_by_ids_for_observers(
     db: AsyncSession,
     workspace_name: str,
-    observer: str,
+    observers: Sequence[str],
+    observed: str,
+    document_ids: list[str],
+    filters: dict[str, Any] | None = None,
+) -> list[models.Document]:
+    """Fetch globally ranked document IDs across observer collections."""
+    if not document_ids or not observers:
+        return []
+
+    stmt = (
+        select(models.Document)
+        .where(models.Document.workspace_name == workspace_name)
+        .where(models.Document.observer.in_(observers))
+        .where(models.Document.observed == observed)
+        .where(models.Document.deleted_at.is_(None))
+        .where(models.Document.id.in_(document_ids))
+    )
+    stmt = apply_filter(stmt, models.Document, filters)
+
+    result = await db.execute(stmt)
+    documents = {doc.id: doc for doc in result.scalars().all()}
+    return [documents[doc_id] for doc_id in document_ids if doc_id in documents]
+
+
+async def _query_documents_pgvector_for_observers(
+    db: AsyncSession,
+    workspace_name: str,
+    observers: Sequence[str],
     observed: str,
     embedding: list[float],
     filters: dict[str, Any] | None,
     max_distance: float | None,
     top_k: int,
 ) -> list[models.Document]:
-    """pgvector similarity search — pure DB operation."""
+    """Globally rank observations across several observer collections."""
+    if not observers:
+        return []
+
+    distance = models.Document.embedding.cosine_distance(embedding)
     stmt = (
         select(models.Document)
         .where(models.Document.workspace_name == workspace_name)
-        .where(models.Document.observer == observer)
+        .where(models.Document.observer.in_(observers))
         .where(models.Document.observed == observed)
         .where(models.Document.embedding.isnot(None))
         .where(models.Document.deleted_at.is_(None))
     )
 
     if max_distance is not None:
-        stmt = stmt.where(
-            models.Document.embedding.cosine_distance(embedding) <= max_distance
-        )
+        stmt = stmt.where(distance <= max_distance)
 
     stmt = apply_filter(stmt, models.Document, filters)
-    stmt = stmt.order_by(models.Document.embedding.cosine_distance(embedding)).limit(
-        top_k
-    )
+    stmt = stmt.order_by(distance, models.Document.id).limit(top_k)
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def query_documents_for_observers(
+    db: AsyncSession | None,
+    workspace_name: str,
+    query: str,
+    *,
+    observers: Sequence[str],
+    observed: str,
+    filters: dict[str, Any] | None = None,
+    max_distance: float | None = None,
+    top_k: int = 5,
+    embedding: list[float] | None = None,
+) -> Sequence[models.Document]:
+    """Query and globally rank observations from several observers."""
+    unique_observers = tuple(dict.fromkeys(observers))
+    if not unique_observers:
+        return []
+
+    if embedding is None:
+        try:
+            embedding = await embedding_client.embed(query)
+        except ValueError as e:
+            raise ValidationException(
+                "Query exceeds maximum token limit of "
+                + f"{settings.EMBEDDING.MAX_INPUT_TOKENS}."
+            ) from e
+
+    if _uses_pgvector():
+        if db is not None:
+            return await _query_documents_pgvector_for_observers(
+                db,
+                workspace_name,
+                unique_observers,
+                observed,
+                embedding,
+                filters,
+                max_distance,
+                top_k,
+            )
+        async with tracked_db(
+            "query_documents_for_observers.pgvector", read_only=True
+        ) as managed_db:
+            docs = await _query_documents_pgvector_for_observers(
+                managed_db,
+                workspace_name,
+                unique_observers,
+                observed,
+                embedding,
+                filters,
+                max_distance,
+                top_k,
+            )
+            for doc in docs:
+                managed_db.expunge(doc)
+            return docs
+
+    document_ids = await query_external_vector_document_ids_for_observers(
+        workspace_name=workspace_name,
+        observers=unique_observers,
+        observed=observed,
+        embedding=embedding,
+        top_k=top_k,
+        max_distance=max_distance,
+        filters=filters,
+    )
+    if not document_ids:
+        return []
+
+    if db is not None:
+        return await fetch_documents_by_ids_for_observers(
+            db=db,
+            workspace_name=workspace_name,
+            observers=unique_observers,
+            observed=observed,
+            document_ids=document_ids,
+            filters=filters,
+        )
+    async with tracked_db(
+        "query_documents_for_observers.fetch", read_only=True
+    ) as managed_db:
+        docs = await fetch_documents_by_ids_for_observers(
+            db=managed_db,
+            workspace_name=workspace_name,
+            observers=unique_observers,
+            observed=observed,
+            document_ids=document_ids,
+            filters=filters,
+        )
+        for doc in docs:
+            managed_db.expunge(doc)
+        return docs
 
 
 async def query_documents(
@@ -353,79 +531,17 @@ async def query_documents(
     Returns:
         Sequence of matching documents
     """
-    # Use provided embedding or generate one
-    if embedding is None:
-        try:
-            embedding = await embedding_client.embed(query)
-        except ValueError as e:
-            raise ValidationException(
-                "Query exceeds maximum token limit of "
-                + f"{settings.EMBEDDING.MAX_INPUT_TOKENS}."
-            ) from e
-
-    if _uses_pgvector():
-        # pgvector path — pure DB, open a short session if none provided
-        if db is not None:
-            return await _query_documents_pgvector(
-                db,
-                workspace_name,
-                observer,
-                observed,
-                embedding,
-                filters,
-                max_distance,
-                top_k,
-            )
-        async with tracked_db("query_documents.pgvector", read_only=True) as managed_db:
-            docs = await _query_documents_pgvector(
-                managed_db,
-                workspace_name,
-                observer,
-                observed,
-                embedding,
-                filters,
-                max_distance,
-                top_k,
-            )
-            for doc in docs:
-                managed_db.expunge(doc)
-            return docs
-
-    # External vector store — network call first, DB only for the ID fetch
-    document_ids = await query_external_vector_document_ids(
+    return await query_documents_for_observers(
+        db=db,
         workspace_name=workspace_name,
-        observer=observer,
+        query=query,
+        observers=[observer],
         observed=observed,
-        embedding=embedding,
-        top_k=top_k,
-        max_distance=max_distance,
         filters=filters,
+        max_distance=max_distance,
+        top_k=top_k,
+        embedding=embedding,
     )
-
-    if not document_ids:
-        return []
-
-    if db is not None:
-        return await fetch_documents_by_ids(
-            db=db,
-            workspace_name=workspace_name,
-            observer=observer,
-            observed=observed,
-            document_ids=document_ids,
-            filters=filters,
-        )
-    async with tracked_db("query_documents.fetch", read_only=True) as managed_db:
-        docs = await fetch_documents_by_ids(
-            db=managed_db,
-            workspace_name=workspace_name,
-            observer=observer,
-            observed=observed,
-            document_ids=document_ids,
-            filters=filters,
-        )
-        for doc in docs:
-            managed_db.expunge(doc)
-        return docs
 
 
 def _normalize_content(content: str) -> str:

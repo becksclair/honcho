@@ -4,6 +4,8 @@ Covers workspace, session, and message-level configuration as well as
 the fully-resolved variants used at runtime.
 """
 
+import re
+import unicodedata
 from enum import Enum
 from typing import Any, Self, cast
 
@@ -11,6 +13,22 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from src.config import settings
 from src.utils.tokens import estimate_tokens
+
+_CANONICAL_PEER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+
+
+class PeerCanonicalCase(str, Enum):
+    """Canonical case policies for workspace peer identities."""
+
+    PRESERVE = "preserve"
+    LOWER = "lower"
+
+
+class DialecticRecallScope(str, Enum):
+    """Evidence scopes available to the Dialectic recall path."""
+
+    OBSERVER = "observer"
+    WORKSPACE = "workspace"
 
 
 class DreamType(str, Enum):
@@ -33,6 +51,94 @@ class ReasoningConfiguration(BaseModel):
     @classmethod
     def validate_custom_instructions(cls, value: str | None) -> str | None:
         return _validate_custom_instructions_budget(value)
+
+
+class DialecticConfiguration(BaseModel):
+    """Read-time memory retrieval policy for the Dialectic agent."""
+
+    recall_scope: DialecticRecallScope | None = Field(
+        default=None,
+        description=(
+            "Whether Dialectic recall is limited to the requesting observer or "
+            "federated across configured workspace observers."
+        ),
+    )
+    recall_observers: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional allowlist of observer peer IDs used when recall_scope is "
+            "workspace. When omitted, all peers in the workspace are eligible."
+        ),
+    )
+
+    @field_validator("recall_observers")
+    @classmethod
+    def validate_recall_observers(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        if not value:
+            raise ValueError("recall_observers cannot be empty")
+        normalized = [peer.strip() for peer in value]
+        if any(not peer for peer in normalized):
+            raise ValueError("recall_observers cannot contain blank peer IDs")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("recall_observers cannot contain duplicates")
+        return normalized
+
+
+def _normalize_identity_aliases(value: dict[str, str] | None) -> dict[str, str] | None:
+    if value is None:
+        return None
+
+    normalized: dict[str, str] = {}
+    for presented_id, canonical_id in value.items():
+        presented = unicodedata.normalize("NFKC", presented_id).strip()
+        canonical = unicodedata.normalize("NFKC", canonical_id).strip()
+        if not presented:
+            raise ValueError("identity aliases cannot contain blank IDs")
+        if not _CANONICAL_PEER_ID_PATTERN.fullmatch(canonical):
+            raise ValueError(
+                f"identity alias target {canonical_id!r} is not a canonical lowercase peer ID"
+            )
+
+        alias_key = presented.casefold()
+        existing = normalized.get(alias_key)
+        if existing is not None and existing != canonical:
+            raise ValueError(
+                f"identity aliases {presented_id!r} collide after case-folding"
+            )
+        normalized[alias_key] = canonical
+
+    return normalized
+
+
+class IdentityConfiguration(BaseModel):
+    """Workspace-level peer identity registry and canonicalization policy."""
+
+    canonical_case: PeerCanonicalCase | None = Field(
+        default=None,
+        description="How unknown dynamic peer IDs are canonicalized.",
+    )
+    strict: bool | None = Field(
+        default=None,
+        description="Whether presented IDs must resolve through the alias registry.",
+    )
+    allow_dynamic_peers: bool | None = Field(
+        default=None,
+        description="Whether identities absent from the registry may be created.",
+    )
+    aliases: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Presented peer IDs mapped to canonical lowercase peer IDs. Alias keys "
+            "are normalized with Unicode NFKC and case-folding."
+        ),
+    )
+
+    @field_validator("aliases")
+    @classmethod
+    def validate_aliases(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        return _normalize_identity_aliases(value)
 
 
 class PeerCardConfiguration(BaseModel):
@@ -116,6 +222,14 @@ class WorkspaceConfiguration(BaseModel):
         default=None,
         description="Configuration for reasoning functionality.",
     )
+    dialectic: DialecticConfiguration | None = Field(
+        default=None,
+        description="Configuration for Dialectic read-time recall.",
+    )
+    identity: IdentityConfiguration | None = Field(
+        default=None,
+        description="Workspace peer identity registry and canonicalization policy.",
+    )
     peer_card: PeerCardConfiguration | None = Field(
         default=None,
         description="Configuration for peer card functionality. If reasoning is disabled, peer cards will also be disabled and these settings will be ignored.",
@@ -163,6 +277,23 @@ class ResolvedReasoningConfiguration(BaseModel):
         return _validate_custom_instructions_budget(value)
 
 
+class ResolvedDialecticConfiguration(BaseModel):
+    recall_scope: DialecticRecallScope = DialecticRecallScope.OBSERVER
+    recall_observers: list[str] | None = None
+
+
+class ResolvedIdentityConfiguration(BaseModel):
+    canonical_case: PeerCanonicalCase = PeerCanonicalCase.PRESERVE
+    strict: bool = False
+    allow_dynamic_peers: bool = True
+    aliases: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("aliases")
+    @classmethod
+    def validate_aliases(cls, value: dict[str, str]) -> dict[str, str]:
+        return _normalize_identity_aliases(value) or {}
+
+
 class ResolvedPeerCardConfiguration(BaseModel):
     use: bool
     create: bool
@@ -185,6 +316,12 @@ class ResolvedConfiguration(BaseModel):
     """
 
     reasoning: ResolvedReasoningConfiguration
+    dialectic: ResolvedDialecticConfiguration = Field(
+        default_factory=ResolvedDialecticConfiguration
+    )
+    identity: ResolvedIdentityConfiguration = Field(
+        default_factory=ResolvedIdentityConfiguration
+    )
     peer_card: ResolvedPeerCardConfiguration
     summary: ResolvedSummaryConfiguration
     dream: ResolvedDreamConfiguration

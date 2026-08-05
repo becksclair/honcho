@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import crud, schemas
 from src.dependencies import db, read_db
 from src.exceptions import ResourceNotFoundException, ValidationException
+from src.identity import resolve_peer_id
 from src.security import require_auth
 from src.telemetry.events import EmbeddingCallPurpose
 from src.utils.types import embedding_call_purpose
@@ -39,9 +40,22 @@ async def create_conclusions(
 
     Conclusions are logical certainties derived from interactions between Peers. They form the basis of a Peer's Representation.
     """
+    conclusions = [
+        conclusion.model_copy(
+            update={
+                "observer_id": await resolve_peer_id(
+                    db, workspace_id, conclusion.observer_id
+                ),
+                "observed_id": await resolve_peer_id(
+                    db, workspace_id, conclusion.observed_id
+                ),
+            }
+        )
+        for conclusion in body.conclusions
+    ]
     documents = await crud.create_observations(
         db,
-        observations=body.conclusions,
+        observations=conclusions,
         workspace_name=workspace_id,
     )
 
@@ -78,6 +92,15 @@ async def list_conclusions(
         if filters == {}:
             filters = None
 
+    if filters:
+        filters = filters.copy()
+        for key in ("observer", "observer_id"):
+            if key in filters:
+                filters[key] = await resolve_peer_id(db, workspace_id, filters[key])
+        for key in ("observed", "observed_id"):
+            if key in filters:
+                filters[key] = await resolve_peer_id(db, workspace_id, filters[key])
+
     stmt = crud.get_documents_with_filters(
         workspace_name=workspace_id,
         filters=filters,
@@ -113,6 +136,14 @@ async def query_conclusions(
             "observer and observed must be specified for semantic search"
         )
 
+    observer = await resolve_peer_id(db, workspace_id, observer)
+    observed = await resolve_peer_id(db, workspace_id, observed)
+    filters = (body.filters or {}).copy()
+    filters.pop("observer_id", None)
+    filters.pop("observed_id", None)
+    filters["observer"] = observer
+    filters["observed"] = observed
+
     with embedding_call_purpose(
         EmbeddingCallPurpose.GENERIC_DOCUMENT_SEARCH.value,
         workspace_name=workspace_id,
@@ -124,7 +155,7 @@ async def query_conclusions(
             query=body.query,
             observer=observer,
             observed=observed,
-            filters=body.filters,
+            filters=filters,
             max_distance=body.distance,
             top_k=body.top_k,
         )

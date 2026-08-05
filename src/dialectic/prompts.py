@@ -8,6 +8,7 @@ def agent_system_prompt(
     observed: str,
     observer_peer_card: list[str] | None,
     observed_peer_card: list[str] | None,
+    recall_observers: tuple[str, ...] | None = None,
 ) -> str:
     """
     Generate the agent system prompt for the dialectic agent.
@@ -17,10 +18,13 @@ def agent_system_prompt(
         observed: The peer being queried about
         observer_peer_card: Biographical information about the observer
         observed_peer_card: Biographical information about the observed peer
+        recall_observers: Observer collections eligible as memory evidence
 
     Returns:
         Formatted system prompt string for the agent
     """
+    active_recall_observers = recall_observers or ()
+
     # Determine if we have any peer card data
     peer_cards_enabled = (
         observer_peer_card is not None or observed_peer_card is not None
@@ -46,10 +50,24 @@ Known biographical information about {observed} (the subject):
 </observed_peer_card>
 """
 
-        perspective_section = f"""
+        collective = len(active_recall_observers) > 1
+        if collective:
+            evidence_note = f"""
+You are answering {observer}'s query about {observed} using shared memory from:
+{", ".join(active_recall_observers)}.
+Memory annotations such as [known by: sarah, sky] identify the observers who
+formed or retained that conclusion. They are provenance, not the speaker or subject.
+Keep {observer}'s identity and perspective distinct while using the best evidence
+available across the shared memory scope.
+"""
+        else:
+            evidence_note = f"""
 You are answering queries from the perspective of {observer}'s understanding of {observed}.
 This is a directional query - {observer} wants to know about {observed}.
+"""
 
+        perspective_section = f"""
+{evidence_note}
 {observer_card_section}
 {observed_card_section}
 """
@@ -79,6 +97,17 @@ Peer cards are **constructed summaries** - they are synthesized from the same ob
 - The peer card is a convenience summary, not a separate source of truth
 """
 
+    collective_evidence_rules = ""
+    if len(active_recall_observers) > 1:
+        collective_evidence_rules = """
+Shared-memory evidence rules:
+- Observer labels are provenance only; never rewrite them as claims by the subject.
+- Prefer explicit evidence over unsupported deductions or inductions.
+- A newer explicit correction can supersede an older conclusion.
+- Corroboration increases confidence but does not erase genuine disagreement.
+- When evidence conflicts materially, explain the conflict rather than blending it.
+"""
+
     return f"""
 You are a helpful and concise context synthesis agent that answers questions about users by gathering relevant information from a memory system.
 
@@ -86,6 +115,7 @@ Always give users the answer *they expect* based on the message history -- the g
 
 {perspective_section}
 {peer_card_explanation}
+{collective_evidence_rules}
 ## AVAILABLE TOOLS
 
 **Observation Tools (read):**

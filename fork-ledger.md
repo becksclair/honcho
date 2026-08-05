@@ -24,6 +24,8 @@ Replay summary: runtime fork head `17b8676dd94e7434e103263598924f290913c957` was
 | production-model-policy | Runtime carry | High | `config.toml` and `AGENTS.md` encode the live self-hosted model, tier, effort, concurrency, embedding, and fallback policy consumed by the Docker stack. This is deployment policy, not an upstream default candidate. |
 | chatgpt-oauth-mcp | Runtime carry | Critical | Fork adds stateful Streamable HTTP MCP, OAuth discovery/DCR/PKCE/token persistence, proxy-aware public URLs, and MCP tests; target only has the Worker implementation. |
 | mcp-peer-identity-normalization | Runtime carry | Critical | `mcp/src/peer-identity.ts:1-12` canonicalizes ChatGPT aliases and shared peer/session tools apply it before writes; target accepts caller-provided peer IDs verbatim. |
+| workspace-collective-recall-and-identity | Runtime carry | Critical | Fork adds workspace-configured canonical peer aliases, strict server-side identity enforcement, and Dialectic retrieval across a configured observer set before deduplication/synthesis; target isolates recall to one observer and permits case/runtime drift. |
+| fam-workspace-migration | Support/proof carry | Critical | Manifest-driven migration tooling converges `openclaw` and `hermes` into `fam` while preserving message/document IDs, embeddings, reasoning provenance, authoritative peer cards, queue history, archive sessions, and rollback gates. |
 | mcp-conclusion-query-controls | Runtime carry | High | `mcp/src/tools/conclusions.ts:24-58` and `:87-120` add level, pagination, distance, ordering, and returned-level support; target exposes only unfiltered list/query calls. |
 | local-codex-stdio-mcp | Runtime carry | High | Fork adds the local stdio entrypoint with fixed `openclaw`/`codex` identity (`mcp/src/stdio.ts:7`) and wrapper used by standalone Codex. |
 | local-compose-port-isolation | Runtime carry | Medium | `docker-compose.override.yml` deliberately keeps Honcho Postgres off the host's port 5432 so Hindsight can own it. |
@@ -40,6 +42,8 @@ Replay summary: runtime fork head `17b8676dd94e7434e103263598924f290913c957` was
 - `production-model-policy` - runtime carry: retain the tracked model/tier/effort/concurrency/embedding policy consumed by the live self-hosted stack.
 - `chatgpt-oauth-mcp` - runtime carry: retain proxy-aware HTTP MCP plus owner-password OAuth, persisted clients/tokens, and server-side Honcho authorization.
 - `mcp-peer-identity-normalization` - runtime carry: canonicalize ChatGPT aliases before peer creation, session membership, removal, or message ingestion.
+- `workspace-collective-recall-and-identity` - runtime carry: keep canonical identities server-authoritative and federate Dialectic evidence across the configured workspace observer set before ranking, deduplication, provenance formatting, and synthesis.
+- `fam-workspace-migration` - support/proof carry: retain the guarded, manifest-driven convergence and verification tooling; never run it without stopped writers and a verified database backup.
 - `mcp-conclusion-query-controls` - runtime carry: expose conclusion level, pagination, distance, ordering, and returned level through MCP.
 - `local-codex-stdio-mcp` - runtime carry: retain local stdio access with the separate `codex` identity boundary.
 - `local-compose-port-isolation` - runtime carry: keep Honcho Postgres private to Compose so another local service can own host port 5432.
@@ -353,6 +357,62 @@ Rebase notes:
 - Source commits: duplicate-history pair `f326954f96` and `10d1e47761`.
 - Refresh examples and migration deltas when upstream changes SDK versions or repository paths.
 - These are support assets; do not count their conflicts as runtime-product conflicts.
+
+### workspace-collective-recall-and-identity
+
+Carry behavior: a workspace can declare canonical peer aliases and a strict identity policy, and the Dialectic can retrieve one globally ranked evidence pool across a configured observer set. Observer-specific conclusions remain distinct at rest and retain provenance, while normal `peer.chat()` calls transparently use the shared family memory scope. Raw message fallback uses the union of sessions visible to the recall observers, and context adjacency remains session-safe.
+
+Primary seam files:
+
+- `src/schemas/configuration.py`
+- `src/identity.py`
+- `src/crud/peer.py`
+- `src/crud/session.py`
+- `src/crud/message.py`
+- `src/crud/document.py`
+- `src/dialectic/chat.py`
+- `src/dialectic/core.py`
+- `src/dialectic/retrieval.py`
+- `src/dialectic/prompts.py`
+- `src/utils/agent_tools.py`
+- `src/security.py`
+- `src/routers/`
+- `mcp/src/peer-identity.ts`
+
+Primary seam tests:
+
+- `.venv/bin/pytest -q tests/test_identity.py tests/dialectic/test_collective_recall.py tests/test_security.py tests/routes/test_auth_route_policy.py tests/routes/test_conclusions.py tests/routes/test_keys.py tests/routes/test_messages.py tests/routes/test_peers.py tests/routes/test_sessions.py tests/routes/test_workspaces.py`
+- `(cd mcp && bun run typecheck:node && bun test)`
+
+Rebase notes:
+
+- Preserve backward compatibility: workspaces without an identity block remain preserve-case and allow dynamic peers; the strict policy is opt-in.
+- Keep writes observer-local. Widen only read-time candidate retrieval and message visibility.
+- Globally rank pgvector results in one SQL query; external stores must retain and merge scores across namespaces.
+- Keep observer provenance in the synthesized evidence and reasoning-chain traversal.
+
+### fam-workspace-migration
+
+Carry behavior: a reviewed JSON manifest defines canonical family peers, alias mappings, authoritative peer cards, source workspaces, excluded archive sessions, client identities, and collective recall configuration. The migration operation preflights queue/session/peer invariants, requires stopped writers and a verified backup, moves the selected corpus transactionally while preserving message/document IDs and embeddings, rewrites queue/dead-letter provenance, retires source workspaces, and verifies the final `fam` state before commit.
+
+Primary seam files:
+
+- `scripts/migrate_fam_workspace.py`
+- `src/operations/fam_migration.py`
+- `tests/operations/test_fam_migration.py`
+- deployment manifest and client configurator in the Saga homelab repository
+
+Primary seam tests:
+
+- `.venv/bin/pytest -q tests/operations/test_fam_migration.py`
+- Disposable-Postgres preflight and apply rehearsal using the exact production manifest.
+- Deferred live proof: verified `pg_dump`, stopped writers, migration apply/verify, client cutover, then Hermes cross-observer recall checks.
+
+Rebase notes:
+
+- This is operational tooling, not an Alembic schema migration. Never execute during ordinary startup or upgrade replay.
+- Preserve source workspace archive sessions and full-database rollback; do not create a second live duplicate corpus.
+- Revalidate every source peer/session exception against current production data before use.
 
 ## Upgrade procedure
 

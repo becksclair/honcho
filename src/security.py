@@ -1,11 +1,13 @@
 import datetime
 import logging
-from typing import Annotated
+from typing import Annotated, cast
 
 import jwt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.utils.formatting import parse_datetime_iso, utc_now_iso
@@ -235,6 +237,40 @@ async def auth(
     # and silently re-open cross-workspace access (the bug this module fixes).
     if workspace_name and jwt_params.w != workspace_name:
         raise AuthenticationException("JWT not permissioned for this resource")
+
+    if workspace_name and (jwt_params.p is not None or peer_name is not None):
+        from src.dependencies import tracked_db
+        from src.identity import resolve_peer_id
+
+        try:
+            async with tracked_db(
+                "auth.resolve_peer_identity", read_only=True
+            ) as identity_db:
+                # Some pure authorization tests intentionally run without a DB
+                # fixture. Production request paths always provide a session.
+                identity_candidate = cast(object, identity_db)
+                if isinstance(identity_candidate, AsyncSession):
+                    if jwt_params.p is not None:
+                        jwt_params.p = await resolve_peer_id(
+                            identity_candidate, workspace_name, jwt_params.p
+                        )
+                    if peer_name is not None:
+                        peer_name = await resolve_peer_id(
+                            identity_candidate, workspace_name, peer_name
+                        )
+        except ProgrammingError as exc:
+            # Preserve the historical DB-free authorization contract only when
+            # the schema itself is absent. Unknown aliases and ordinary DB
+            # failures still deny access.
+            if getattr(exc.orig, "sqlstate", None) != "42P01":
+                raise AuthenticationException(
+                    "JWT not permissioned for this resource"
+                ) from exc
+            logger.debug("identity schema unavailable during authorization")
+        except Exception as exc:
+            raise AuthenticationException(
+                "JWT not permissioned for this resource"
+            ) from exc
 
     if jwt_params.s is not None:
         # Session-scoped token: confined to its own session. It gets no

@@ -105,6 +105,16 @@ def get_configuration(
             "enabled": settings.DERIVER.ENABLED,
             "custom_instructions": None,
         },
+        "dialectic": {
+            "recall_scope": "observer",
+            "recall_observers": None,
+        },
+        "identity": {
+            "canonical_case": "preserve",
+            "strict": False,
+            "allow_dynamic_peers": True,
+            "aliases": {},
+        },
         "peer_card": {
             "use": settings.PEER_CARD.ENABLED,
             "create": settings.PEER_CARD.ENABLED,

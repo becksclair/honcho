@@ -748,18 +748,18 @@ class TestSearchMemory:
             embed_calls.append(query)
             return [0.1, 0.2, 0.3]
 
-        async def fake_query_documents(
+        async def fake_query_documents_for_observers(
             db: AsyncSession,
             workspace_name: str,
             query: str,
             *,
-            observer: str,
+            observers: tuple[str, ...],
             observed: str,
             top_k: int = 5,
             embedding: list[float] | None = None,
             **_kwargs: Any,
         ) -> list[models.Document]:
-            _ = (db, workspace_name, query, observer, observed, top_k)
+            _ = (db, workspace_name, query, observers, observed, top_k)
             query_embeddings.append(embedding)
             return []
 
@@ -787,7 +787,8 @@ class TestSearchMemory:
 
         monkeypatch.setattr("src.utils.agent_tools.embedding_client.embed", fake_embed)
         monkeypatch.setattr(
-            "src.utils.agent_tools.crud.query_documents", fake_query_documents
+            "src.dialectic.retrieval.crud.query_documents_for_observers",
+            fake_query_documents_for_observers,
         )
         monkeypatch.setattr(
             "src.utils.agent_tools.crud.search_messages",

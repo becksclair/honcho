@@ -16,6 +16,7 @@ from src import crud
 from src.config import ConfiguredModelSettings, ReasoningLevel, settings
 from src.dependencies import tracked_db
 from src.dialectic import prompts
+from src.dialectic.retrieval import retrieve_memory_evidence
 from src.embedding_client import embedding_client
 from src.llm import (
     HonchoLLMCallResponse,
@@ -35,7 +36,6 @@ from src.utils.agent_tools import (
     DIALECTIC_TOOLS,
     DIALECTIC_TOOLS_MINIMAL,
     create_tool_executor,
-    search_memory,
 )
 from src.utils.formatting import format_new_turn_with_timestamp
 from src.utils.types import embedding_call_purpose
@@ -64,6 +64,7 @@ class DialecticAgent:
         session_name: str | None,
         observer: str,
         observed: str,
+        recall_observers: tuple[str, ...] | None = None,
         observer_peer_card: list[str] | None = None,
         observed_peer_card: list[str] | None = None,
         metric_key: str | None = None,
@@ -78,6 +79,7 @@ class DialecticAgent:
             session_name: Session identifier (may be None for global queries)
             observer: The peer making the query
             observed: The peer being queried about
+            recall_observers: Observer collections eligible for read-time recall
             observer_peer_card: Biographical information about the observer
             observed_peer_card: Biographical information about the observed peer
             metric_key: Optional key for logging metrics (if provided, agent won't log separately)
@@ -89,6 +91,7 @@ class DialecticAgent:
         self.session_id: str | None = session_id
         self.observer: str = observer
         self.observed: str = observed
+        self.recall_observers: tuple[str, ...] = recall_observers or (observer,)
         self.observer_peer_card: list[str] | None = observer_peer_card
         self.observed_peer_card: list[str] | None = observed_peer_card
         self.metric_key: str | None = metric_key
@@ -99,7 +102,11 @@ class DialecticAgent:
             {
                 "role": "system",
                 "content": prompts.agent_system_prompt(
-                    observer, observed, observer_peer_card, observed_peer_card
+                    observer,
+                    observed,
+                    observer_peer_card,
+                    observed_peer_card,
+                    recall_observers=self.recall_observers,
                 ),
             }
         ]
@@ -186,11 +193,11 @@ class DialecticAgent:
             ):
                 query_embedding = await embedding_client.embed(query)
 
-            # search_memory manages its own short-lived DB sessions so no
-            # connection is held during external vector-store calls.
-            explicit_repr = await search_memory(
+            # Retrieve a globally ranked candidate pool across the effective
+            # observer set while retaining observer provenance.
+            explicit_evidence = await retrieve_memory_evidence(
                 workspace_name=self.workspace_name,
-                observer=self.observer,
+                observers=self.recall_observers,
                 observed=self.observed,
                 query=query,
                 limit=prefetch_limit,
@@ -198,9 +205,9 @@ class DialecticAgent:
                 embedding=query_embedding,
             )
 
-            derived_repr = await search_memory(
+            derived_evidence = await retrieve_memory_evidence(
                 workspace_name=self.workspace_name,
-                observer=self.observer,
+                observers=self.recall_observers,
                 observed=self.observed,
                 query=query,
                 limit=prefetch_limit,
@@ -208,24 +215,20 @@ class DialecticAgent:
                 embedding=query_embedding,
             )
 
-            if explicit_repr.is_empty() and derived_repr.is_empty():
+            if explicit_evidence.is_empty() and derived_evidence.is_empty():
                 return None
 
-            # Count prefetched conclusions for telemetry. `Representation.len()`
-            # sums all four levels (explicit/deductive/inductive/contradiction);
-            # the previous hand-sum dropped inductive + contradiction even
-            # though prefetch explicitly requests them.
-            self._prefetched_conclusion_count = explicit_repr.len() + derived_repr.len()
+            self._prefetched_conclusion_count = len(explicit_evidence) + len(
+                derived_evidence
+            )
 
-            # Format as two separate sections
             parts: list[str] = []
 
-            if not explicit_repr.is_empty():
-                parts.append(explicit_repr.format_as_markdown(include_ids=False))
+            if not explicit_evidence.is_empty():
+                parts.append(explicit_evidence.format_as_markdown(include_ids=False))
 
-            if not derived_repr.is_empty():
-                # Include IDs for derived so agent can use get_reasoning_chain
-                parts.append(derived_repr.format_as_markdown(include_ids=True))
+            if not derived_evidence.is_empty():
+                parts.append(derived_evidence.format_as_markdown(include_ids=True))
 
             return "\n".join(parts)
 
@@ -297,6 +300,7 @@ class DialecticAgent:
             session_name=self.session_name,
             observer=self.observer,
             observed=self.observed,
+            recall_observers=self.recall_observers,
             history_token_limit=settings.DIALECTIC.HISTORY_TOKEN_LIMIT,
             run_id=self._run_id,
             agent_type="dialectic",

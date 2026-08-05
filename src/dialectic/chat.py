@@ -8,13 +8,46 @@ using the DialecticAgent.
 import logging
 from collections.abc import AsyncIterator
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src import crud, schemas
 from src.config import ReasoningLevel
 from src.dependencies import tracked_db
 from src.dialectic.core import DialecticAgent
+from src.exceptions import ValidationException
+from src.identity import resolve_peer_id
 from src.utils.config_helpers import get_configuration
 
 logger = logging.getLogger(__name__)
+
+
+async def resolve_recall_observers(
+    db: AsyncSession,
+    *,
+    workspace_name: str,
+    observer: str,
+    configuration: schemas.ResolvedConfiguration,
+) -> tuple[str, ...]:
+    """Resolve the server-authoritative observer set for Dialectic reads."""
+    if configuration.dialectic.recall_scope == schemas.DialecticRecallScope.OBSERVER:
+        return (observer,)
+
+    peers_stmt = await crud.get_peers(workspace_name)
+    peers_result = await db.execute(peers_stmt)
+    available_peers = tuple(peer.name for peer in peers_result.scalars().all())
+
+    configured = configuration.dialectic.recall_observers
+    if configured is None:
+        return available_peers
+
+    available = set(available_peers)
+    missing = [peer for peer in configured if peer not in available]
+    if missing:
+        raise ValidationException(
+            "Dialectic recall_observers contains unknown workspace peers: "
+            + ", ".join(missing)
+        )
+    return tuple(configured)
 
 
 async def agentic_chat(
@@ -41,6 +74,8 @@ async def agentic_chat(
     """
     # Short-lived DB session for validation + config
     async with tracked_db("dialectic.preflight", read_only=True) as db:
+        observer = await resolve_peer_id(db, workspace_name, observer)
+        observed = await resolve_peer_id(db, workspace_name, observed)
         await crud.get_peer(db, workspace_name, schemas.PeerCreate(name=observer))
         if observer != observed:
             await crud.get_peer(db, workspace_name, schemas.PeerCreate(name=observed))
@@ -55,6 +90,12 @@ async def agentic_chat(
         session_id = session.id if session else None
         workspace = await crud.get_workspace(db, workspace_name=workspace_name)
         configuration = get_configuration(None, session, workspace)
+        recall_observers = await resolve_recall_observers(
+            db,
+            workspace_name=workspace_name,
+            observer=observer,
+            configuration=configuration,
+        )
 
         observer_peer_card = None
         observed_peer_card = None
@@ -74,6 +115,7 @@ async def agentic_chat(
         session_id=session_id,
         observer=observer,
         observed=observed,
+        recall_observers=recall_observers,
         observer_peer_card=observer_peer_card,
         observed_peer_card=observed_peer_card,
         reasoning_level=reasoning_level,
@@ -106,6 +148,8 @@ async def agentic_chat_stream(
     """
     # Short-lived DB session for validation + config
     async with tracked_db("dialectic.preflight", read_only=True) as db:
+        observer = await resolve_peer_id(db, workspace_name, observer)
+        observed = await resolve_peer_id(db, workspace_name, observed)
         await crud.get_peer(db, workspace_name, schemas.PeerCreate(name=observer))
         if observer != observed:
             await crud.get_peer(db, workspace_name, schemas.PeerCreate(name=observed))
@@ -120,6 +164,12 @@ async def agentic_chat_stream(
         session_id = session.id if session else None
         workspace = await crud.get_workspace(db, workspace_name=workspace_name)
         configuration = get_configuration(None, session, workspace)
+        recall_observers = await resolve_recall_observers(
+            db,
+            workspace_name=workspace_name,
+            observer=observer,
+            configuration=configuration,
+        )
 
         observer_peer_card = None
         observed_peer_card = None
@@ -139,6 +189,7 @@ async def agentic_chat_stream(
         session_id=session_id,
         observer=observer,
         observed=observed,
+        recall_observers=recall_observers,
         observer_peer_card=observer_peer_card,
         observed_peer_card=observed_peer_card,
         reasoning_level=reasoning_level,

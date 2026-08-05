@@ -1,10 +1,14 @@
 import datetime
 import logging
+from typing import cast
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.dependencies import read_db
 from src.exceptions import DisabledException, ValidationException
+from src.identity import resolve_peer_id
 from src.security import (
     JWTParams,
     create_jwt,
@@ -32,6 +36,7 @@ async def create_key(
         None, description="ID of the session to scope the key to"
     ),
     expires_at: datetime.datetime | None = None,
+    db: AsyncSession = read_db,
 ):
     """Create a new Key"""
     if not settings.AUTH.USE_AUTH:
@@ -53,6 +58,14 @@ async def create_key(
         raise ValidationException(
             "workspace_id is required when scoping a key to a peer or session"
         )
+
+    db_candidate = cast(object, db)
+    if (
+        workspace_id is not None
+        and peer_id is not None
+        and isinstance(db_candidate, AsyncSession)
+    ):
+        peer_id = await resolve_peer_id(db_candidate, workspace_id, peer_id)
 
     key_str = create_jwt(
         JWTParams(
