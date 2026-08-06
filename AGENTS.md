@@ -56,24 +56,20 @@ openclaw honcho status
 
 Current live model backbone:
 
-- Deriver: `codex/gpt-5.6-luna` with `thinking_effort = "xhigh"` on the normal tier.
-- Summary: `codex/gpt-5.6-luna` with `thinking_effort = "xhigh"` on the normal tier.
-- Dream deduction/induction: `codex/gpt-5.6-luna` with
-  `thinking_effort = "xhigh"` on the normal tier by default.
-- Dialectic synthesis: `minimal` through `high` use `codex/gpt-5.6-luna` with
-  `thinking_effort = "xhigh"`; `max` uses the model's highest wire effort,
-  `thinking_effort = "max"`. Codex CLI's `ultra` mode also sends `max` on the
-  wire and adds client-side proactive subagents, which Honcho does not emulate.
-  `minimal` and `low` stay normal tier; `medium`, `high`, and `max` use
-  `service_tier = "priority"`.
-- GPT-5.6 models use the Responses-Lite contract and require the supported
-  Codex client identity: `CODEX_ORIGINATOR = "codex_exec"` and
-  `CODEX_USER_AGENT = "codex_exec/0.144.1"`. With either field left as
-  `honcho`, the ChatGPT subscription endpoint returns `Model not found` for
-  `gpt-5.6-luna` even when the account and Lite request shape are otherwise valid.
-- Local embeddings: `bge-m3:latest` through Ollama-compatible OpenAI API; verify
-  the current `base_url` from the running config because it may move between
-  Docker-host and Tailscale addresses.
+- All Honcho text-generation lanes use `openai/deepseek-v4-flash-free` through
+  `https://opencode.ai/zen/v1`: deriver, summaries, dream deduction/induction,
+  and every Dialectic reasoning level.
+- Deriver keeps `structured_output_mode = "json_object"`; Dialectic uses
+  `TOOL_CHOICE = "auto"` at every level because the provider rejects forced
+  `any`/`required` tool choice.
+- Local embeddings remain `bge-m3:latest` through the Ollama-compatible OpenAI
+  API and are not part of the DeepSeek profile.
+- `config-deepseek-free-primary.toml` is the tracked all-free production profile.
+  `config-codex-primary.toml` and `config-deepseek-primary.toml` are retained as
+  explicit fallback/reference profiles, not the current active policy.
+- The live Saga deployment is built from `/srv/services/honcho` by
+  `/opt/homelab/compose.yaml`; the API, deriver, and MCP images must be rebuilt
+  after source changes.
 
 DeepSeek V4 Pro:
 

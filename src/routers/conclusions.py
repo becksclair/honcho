@@ -5,7 +5,7 @@ from fastapi_pagination import Page
 from fastapi_pagination.ext.sqlalchemy import apaginate
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src import crud, schemas
+from src import crud, models, schemas
 from src.dependencies import db, read_db
 from src.exceptions import ResourceNotFoundException, ValidationException
 from src.identity import resolve_peer_id
@@ -14,6 +14,27 @@ from src.telemetry.events import EmbeddingCallPurpose
 from src.utils.types import embedding_call_purpose
 
 logger = logging.getLogger(__name__)
+
+
+def _serialize_conclusion(document: models.Document) -> schemas.Conclusion:
+    """Build the public conclusion contract with both level field names."""
+    return schemas.Conclusion(
+        id=document.id,
+        content=document.content,
+        observer=document.observer,
+        observed=document.observed,
+        session_name=document.session_name,
+        level=document.level,
+        conclusion_type=document.level,
+        created_at=document.created_at,
+    )
+
+
+def _serialize_conclusions(
+    documents: list[models.Document],
+) -> list[schemas.Conclusion]:
+    return [_serialize_conclusion(document) for document in documents]
+
 
 router = APIRouter(
     prefix="/workspaces/{workspace_id}/conclusions",
@@ -64,7 +85,7 @@ async def create_conclusions(
         len(documents),
         workspace_id,
     )
-    return [schemas.Conclusion.model_validate(doc) for doc in documents]
+    return _serialize_conclusions(documents)
 
 
 @router.post(
@@ -107,7 +128,7 @@ async def list_conclusions(
         reverse=reverse or False,
     )
 
-    return await apaginate(db, stmt)
+    return await apaginate(db, stmt, transformer=_serialize_conclusions)
 
 
 @router.post(
@@ -159,7 +180,7 @@ async def query_conclusions(
             max_distance=body.distance,
             top_k=body.top_k,
         )
-    return [schemas.Conclusion.model_validate(doc) for doc in documents]
+    return _serialize_conclusions(list(documents))
 
 
 @router.delete(

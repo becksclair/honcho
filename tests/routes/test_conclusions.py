@@ -738,6 +738,7 @@ class TestConclusionRoutes:
         assert conclusion["observed_id"] == doc.observed
         assert conclusion["session_id"] == doc.session_name
         assert conclusion["level"] == "explicit"
+        assert conclusion["conclusion_type"] == "explicit"
         assert "created_at" in conclusion
 
         # Verify internal fields are NOT exposed

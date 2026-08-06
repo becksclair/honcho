@@ -1,12 +1,10 @@
-# Honcho — self-hosted with Codex-backed LLM calls
+# Honcho — self-hosted with DeepSeek V4 Flash Free generation
 #
-# Data sovereignty: all memory/state stays on this VM (PostgreSQL + Redis).
+# Data sovereignty: all memory/state stays on Saga (PostgreSQL + Redis).
 #
 # LLM STRATEGY:
-#   Text generation, structured output, and tool loops use the native Codex
-#   transport against the ChatGPT Codex endpoint, authenticated from the mounted
-#   Codex auth file in the containers.
-#
+#   All text generation, structured output, and Dialectic tool loops use
+#   deepseek-v4-flash-free through OpenCode Zen's OpenAI-compatible endpoint.
 #   Embeddings stay local via Ollama (bge-m3:latest, 1024-dim).
 
 [app]

@@ -1,0 +1,237 @@
+# Honcho — self-hosted with Codex-backed LLM calls
+#
+# Data sovereignty: all memory/state stays on this VM (PostgreSQL + Redis).
+#
+# LLM STRATEGY:
+#   Text generation, structured output, and tool loops use the native Codex
+#   transport against the ChatGPT Codex endpoint, authenticated from the mounted
+#   Codex auth file in the containers.
+#
+#   Embeddings stay local via Ollama (bge-m3:latest, 1024-dim).
+
+[app]
+LOG_LEVEL = "INFO"
+SESSION_OBSERVERS_LIMIT = 10
+GET_CONTEXT_MAX_TOKENS = 100000
+MAX_FILE_SIZE = 5242880
+MAX_MESSAGE_SIZE = 25000
+EMBED_MESSAGES = true
+MAX_EMBEDDING_TOKENS = 8192
+NAMESPACE = "honcho"
+
+[db]
+CONNECTION_URI = "postgresql+psycopg://honcho:honcho@database:5432/honcho"
+SCHEMA = "public"
+POOL_SIZE = 10
+MAX_OVERFLOW = 20
+POOL_TIMEOUT = 30
+POOL_RECYCLE = 300
+
+[auth]
+USE_AUTH = false
+
+[cache]
+ENABLED = true
+URL = "redis://redis:6379/0?suppress=true"
+DEFAULT_TTL_SECONDS = 300
+
+[llm]
+DEFAULT_MAX_TOKENS = 4000
+MAX_TOOL_OUTPUT_CHARS = 20000
+MAX_MESSAGE_CONTENT_CHARS = 4000
+# Raised from default 1 to parallelize deriver LLM calls. Honcho's load is
+# bursty, not sustained, so 4 clears bursts without hammering the subscription endpoint.
+CODEX_MAX_CONCURRENT_CALLS = 4
+# The ChatGPT Codex Responses-Lite route exposes GPT-5.6 models only to the
+# supported Codex client identity. Both fields are required; the legacy
+# honcho/honcho identity receives `Model not found` for gpt-5.6-luna.
+CODEX_ORIGINATOR = "codex_exec"
+CODEX_USER_AGENT = "codex_exec/0.144.1"
+
+# ---------------------------------------------------------------------------
+# Deriver — observation extraction (runs every message)
+# ---------------------------------------------------------------------------
+[deriver]
+ENABLED = true
+WORKERS = 4
+POLLING_SLEEP_INTERVAL_SECONDS = 1.0
+STALE_SESSION_TIMEOUT_MINUTES = 5
+DEDUPLICATE = true
+LOG_OBSERVATIONS = false
+MAX_INPUT_TOKENS = 25000
+MAX_CUSTOM_INSTRUCTIONS_TOKENS = 2000
+WORKING_REPRESENTATION_MAX_OBSERVATIONS = 200
+REPRESENTATION_BATCH_MAX_TOKENS = 768
+FLUSH_ENABLED = true
+# Max attempts before a failed queue item is dead-lettered (archived, not dropped)
+MAX_PROCESSING_ATTEMPTS = 10
+# Base delay (seconds) for exponential retry backoff: min(BASE * 2**(n-1), MAX)
+RETRY_BACKOFF_BASE_SECONDS = 30.0
+# Cap (seconds) on the retry backoff delay
+RETRY_BACKOFF_MAX_SECONDS = 7200.0
+# Random jitter fraction applied to each backoff delay ([1-JITTER, 1+JITTER])
+RETRY_BACKOFF_JITTER = 0.2
+
+[deriver.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "medium"
+structured_output_mode = "json_object"
+
+[deriver.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic]
+MAX_OUTPUT_TOKENS = 8192
+MAX_INPUT_TOKENS = 100000
+HISTORY_TOKEN_LIMIT = 16384
+SESSION_HISTORY_MAX_TOKENS = 8192
+
+[dialectic.levels.minimal]
+MAX_TOOL_ITERATIONS = 1
+MAX_OUTPUT_TOKENS = 350
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.minimal.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "high"
+
+[dialectic.levels.minimal.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic.levels.low]
+MAX_TOOL_ITERATIONS = 4
+TOOL_CHOICE = "any"
+
+[dialectic.levels.low.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "high"
+
+[dialectic.levels.low.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic.levels.medium]
+MAX_TOOL_ITERATIONS = 6
+TOOL_CHOICE = "any"
+
+[dialectic.levels.medium.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "high"
+
+[dialectic.levels.medium.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic.levels.high]
+MAX_TOOL_ITERATIONS = 8
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.high.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "xhigh"
+
+[dialectic.levels.high.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic.levels.max]
+MAX_TOOL_ITERATIONS = 12
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.max.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "max"
+
+[dialectic.levels.max.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[summary]
+ENABLED = true
+MESSAGES_PER_SHORT_SUMMARY = 16
+MESSAGES_PER_LONG_SUMMARY = 48
+MAX_TOKENS_SHORT = 1200
+MAX_TOKENS_LONG = 5000
+
+[summary.model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "high"
+
+[summary.model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dream]
+ENABLED = true
+DOCUMENT_THRESHOLD = 35
+IDLE_TIMEOUT_MINUTES = 30
+MIN_HOURS_BETWEEN_DREAMS = 6
+ENABLED_TYPES = ["omni"]
+MAX_TOOL_ITERATIONS = 30
+HISTORY_TOKEN_LIMIT = 32768
+
+[dream.deduction_model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "max"
+
+[dream.deduction_model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dream.induction_model_config]
+transport = "openai"
+model = "deepseek-v4-flash"
+thinking_effort = "max"
+
+[dream.induction_model_config.overrides]
+base_url = "https://opencode.ai/zen/v1"
+api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dream.surprisal]
+ENABLED = true
+TREE_TYPE = "kdtree"
+TREE_K = 5
+SAMPLING_STRATEGY = "recent"
+SAMPLE_SIZE = 300
+TOP_PERCENT_SURPRISAL = 0.15
+MIN_HIGH_SURPRISAL_FOR_REPLACE = 10
+INCLUDE_LEVELS = ["explicit", "deductive"]
+
+[peer_card]
+ENABLED = true
+
+[vector_store]
+TYPE = "pgvector"
+
+[embedding]
+VECTOR_DIMENSIONS = 1024
+MAX_INPUT_TOKENS = 8192
+MAX_TOKENS_PER_REQUEST = 300000
+
+[embedding.model_config]
+transport = "openai"
+model = "bge-m3:latest"
+dimensions_mode = "never"
+
+[embedding.model_config.overrides]
+api_key = "none"
+base_url = "http://100.120.202.119:11434/v1"
+
+[metrics]
+ENABLED = false
+
+[telemetry]
+ENABLED = false
+
+[sentry]
+ENABLED = false

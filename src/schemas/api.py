@@ -123,6 +123,10 @@ class Workspace(WorkspaceBase):
         default_factory=dict, serialization_alias="metadata"
     )
     configuration: dict[str, Any] = Field(default_factory=dict)
+    conclusion_type: DocumentLevel = Field(
+        default="explicit",
+        description="Backward-compatible alias of the stable level field.",
+    )
     created_at: datetime.datetime
 
     model_config = ConfigDict(  # pyright: ignore
@@ -454,6 +458,9 @@ class Conclusion(BaseModel):
             "from messages) or 'deductive'/'inductive'/'contradiction' (derived "
             "during dreaming)."
         ),
+    )
+    conclusion_type: DocumentLevel = Field(
+        description="Backward-compatible alias of the stable level field.",
     )
     created_at: datetime.datetime
 
