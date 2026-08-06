@@ -260,17 +260,6 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
             f"active_queue_sessions is not empty ({active_count}); stop all writers first"
         )
 
-    pending = int(
-        await _scalar(
-            db,
-            "SELECT count(*) FROM queue WHERE processed=false AND workspace_name = ANY(:sources)",
-            sources=list(manifest.source_names),
-        )
-        or 0
-    )
-    if pending:
-        raise FamMigrationError(f"source workspaces have {pending} pending queue tasks")
-
     session_moves: list[SessionMove] = []
     source_session_rows: dict[str, list[dict[str, Any]]] = {}
     seen_session_names: set[str] = set()
@@ -1197,16 +1186,35 @@ async def verify_migration(
             f"fam session count mismatch: {session_count} != {len(plan.sessions)}"
         )
 
-    pending = int(
+    queue_counts = await _mappings(
+        db,
+        """
+        SELECT
+          count(*) AS queue_rows,
+          count(*) FILTER (WHERE processed=false) AS pending_queue_rows,
+          count(*) FILTER (WHERE coalesce(error,'')<>'') AS queue_rows_with_error
+        FROM queue
+        WHERE workspace_name=:target
+        """,
+        target=manifest.target_workspace,
+    )
+    queue_metrics = (
+        queue_counts[0]
+        if queue_counts
+        else {
+            "queue_rows": 0,
+            "pending_queue_rows": 0,
+            "queue_rows_with_error": 0,
+        }
+    )
+    dead_letter_rows = int(
         await _scalar(
             db,
-            "SELECT count(*) FROM queue WHERE workspace_name=:target AND processed=false",
+            "SELECT count(*) FROM queue_dead_letter WHERE workspace_name=:target",
             target=manifest.target_workspace,
         )
         or 0
     )
-    if pending:
-        raise FamMigrationError(f"fam has {pending} pending queue rows after migration")
 
     return {
         "workspace": manifest.target_workspace,
@@ -1228,6 +1236,10 @@ async def verify_migration(
             )
             or 0
         ),
+        "queue_rows": int(queue_metrics["queue_rows"]),
+        "pending_queue_rows": int(queue_metrics["pending_queue_rows"]),
+        "queue_rows_with_error": int(queue_metrics["queue_rows_with_error"]),
+        "dead_letter_rows": dead_letter_rows,
     }
 
 

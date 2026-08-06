@@ -261,9 +261,12 @@ async def _seed(db: AsyncSession) -> dict[str, Any]:
             "content": [],
             "created_at": now.isoformat(),
         },
-        processed=True,
+        processed=False,
         workspace_name="openclaw",
         message_id=messages[0].id,
+        attempts=2,
+        error="preserve pending failure",
+        next_attempt_at=now,
     )
     dead = models.QueueDeadLetter(
         id=generate_nanoid(),
@@ -297,6 +300,7 @@ async def _seed(db: AsyncSession) -> dict[str, Any]:
             "archived": archived_doc.id,
         },
         "queue": queue.id,
+        "queue_next_attempt_at": now,
         "dead": dead.id,
     }
 
@@ -313,6 +317,9 @@ async def test_fam_migration_preserves_ids_and_authoritative_luke(
     result = await apply_migration(db_session, manifest)
     await db_session.commit()
     assert result.report["verification"]["sessions"] == 2
+    assert result.report["verification"]["pending_queue_rows"] == 1
+    assert result.report["verification"]["queue_rows_with_error"] == 1
+    assert result.report["verification"]["dead_letter_rows"] == 1
 
     workspace = await db_session.scalar(
         select(models.Workspace).where(models.Workspace.name == "fam")
@@ -381,6 +388,10 @@ async def test_fam_migration_preserves_ids_and_authoritative_luke(
     assert queue and queue.workspace_name == "fam"
     assert queue.payload["observed"] == "bex"
     assert queue.payload["observers"] == ["sarah", "kate"]
+    assert queue.processed is False
+    assert queue.attempts == 2
+    assert queue.error == "preserve pending failure"
+    assert queue.next_attempt_at == seeded["queue_next_attempt_at"]
     dead = await db_session.get(models.QueueDeadLetter, seeded["dead"])
     assert dead and dead.workspace_name == "fam"
 
