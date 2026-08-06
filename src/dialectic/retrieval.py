@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from src import crud, models
+from src import models
 from src.utils.formatting import parse_datetime_iso
 
 
@@ -188,6 +188,10 @@ async def retrieve_memory_evidence(
     embedding: list[float] | None = None,
 ) -> MemoryEvidenceSet:
     """Retrieve one globally ranked evidence pool across observer collections."""
+    # Import after module initialization to avoid the CRUD -> dreamer ->
+    # agent_tools -> retrieval startup cycle.
+    from src import crud
+
     filters: dict[str, Any] | None = None
     if levels:
         filters = {"level": {"in": levels}}
