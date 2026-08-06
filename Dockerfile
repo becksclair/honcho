@@ -46,6 +46,13 @@ COPY --chown=app:app alembic.ini /app/alembic.ini
 # Copy config files - this will copy config.toml if it exists, and config.toml.example
 COPY --chown=app:app config.toml* /app/
 
+# Git preserves only the executable bit, so checkouts created under a restrictive
+# umask can otherwise copy source as 0600. Compose intentionally runs Honcho as
+# the host service UID rather than the image's app user, so normalize runtime
+# readability inside the image while preserving executable scripts.
+RUN chmod -R a+rX /app/src /app/migrations /app/scripts /app/docker \
+    && chmod a+r /app/alembic.ini /app/config.toml*
+
 # Switch to non-root user
 USER app
 
