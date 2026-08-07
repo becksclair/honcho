@@ -64,4 +64,23 @@ def test_openai_history_adapter_preserves_reasoning_details() -> None:
 
     assert message["role"] == "assistant"
     assert message["reasoning_details"] == [{"type": "reasoning", "content": "step 1"}]
+    assert "reasoning_content" not in message
+    assert message["tool_calls"][0]["function"]["name"] == "search"
+
+
+def test_openai_history_adapter_preserves_plain_reasoning_content() -> None:
+    adapter = OpenAIHistoryAdapter()
+    result = CompletionResult(
+        content="Calling a tool",
+        thinking_content="provider-native reasoning",
+        tool_calls=[
+            ToolCallResult(id="tool_1", name="search", input={"query": "honcho"})
+        ],
+    )
+
+    message = adapter.format_assistant_tool_message(result)
+
+    assert message["role"] == "assistant"
+    assert message["reasoning_content"] == "provider-native reasoning"
+    assert "reasoning_details" not in message
     assert message["tool_calls"][0]["function"]["name"] == "search"

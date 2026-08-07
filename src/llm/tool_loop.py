@@ -210,6 +210,7 @@ def format_assistant_tool_message(
     provider: ModelTransport,
     content: Any,
     tool_calls: list[dict[str, Any]],
+    thinking_content: str | None = None,
     thinking_blocks: list[dict[str, Any]] | None = None,
     reasoning_details: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -229,6 +230,7 @@ def format_assistant_tool_message(
             )
             for tool_call in tool_calls
         ],
+        thinking_content=thinking_content,
         thinking_blocks=thinking_blocks or [],
         reasoning_details=reasoning_details or [],
     )
@@ -571,6 +573,7 @@ async def execute_tool_loop(
                 current_provider,
                 response.content,
                 response.tool_calls_made,
+                response.thinking_content,
                 response.thinking_blocks,
                 response.reasoning_details,
             )

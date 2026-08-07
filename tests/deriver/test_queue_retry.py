@@ -147,6 +147,42 @@ class TestTransientFailureDefers:
         )
 
 
+class TestSuccessfulRetryClearsFailureState:
+    async def test_success_clears_stale_error_and_retry_deadline(
+        self,
+        db_session: AsyncSession,
+        representation_item: models.QueueItem,
+        captured_events: list[Any],
+    ) -> None:
+        item = representation_item
+        work_unit_key = item.work_unit_key
+        item_id = item.id
+        qm = QueueManager()
+
+        await qm._handle_processing_error(  # pyright: ignore[reportPrivateUsage]
+            _wrap_retry_error(RuntimeError("provider temporarily unavailable")),
+            [item],
+            work_unit_key,
+            "processing representation batch",
+        )
+        deferred = await _refetch(db_session, item_id)
+        assert deferred.processed is False
+        assert deferred.error is not None
+        assert deferred.next_attempt_at is not None
+        assert deferred.attempts == 1
+
+        await qm.mark_queue_items_as_processed([deferred], work_unit_key)
+        completed = await _refetch(db_session, item_id)
+        assert completed.processed is True
+        assert completed.error is None
+        assert completed.next_attempt_at is None
+        assert completed.attempts == 1
+        assert await _dead_letters(db_session) == []
+        assert not any(
+            isinstance(e, RepresentationDeadLetteredEvent) for e in captured_events
+        )
+
+
 class TestPermanentFailureDeadLetters:
     """Scenario B — permanent failures are archived and alerted, not dropped."""
 

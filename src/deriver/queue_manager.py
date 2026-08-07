@@ -1146,7 +1146,7 @@ class QueueManager:
                 update(models.QueueItem)
                 .where(models.QueueItem.id.in_(item_ids))
                 .where(models.QueueItem.work_unit_key == work_unit_key)
-                .values(processed=True)
+                .values(processed=True, error=None, next_attempt_at=None)
             )
             await db.execute(
                 update(models.ActiveQueueSession)

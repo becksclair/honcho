@@ -121,6 +121,13 @@ class OpenAIHistoryAdapter:
         }
         if result.reasoning_details:
             message["reasoning_details"] = result.reasoning_details
+        elif result.thinking_content:
+            # Some OpenAI-compatible reasoning providers (notably DeepSeek)
+            # return provider-native `reasoning_content` on assistant tool-call
+            # messages and require that exact field to be replayed on the next
+            # turn. Only emit it when no structured reasoning_details payload is
+            # present so OpenRouter-style reasoning keeps its native contract.
+            message["reasoning_content"] = result.thinking_content
         return message
 
     def format_tool_results(
