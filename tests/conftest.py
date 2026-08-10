@@ -13,7 +13,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from nanoid import generate as generate_nanoid
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import (
@@ -25,7 +25,6 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy_utils import (
     create_database,  # pyright: ignore[reportUnknownVariableType]
     database_exists,  # pyright: ignore[reportUnknownVariableType]
-    drop_database,  # pyright: ignore[reportUnknownVariableType]
 )
 
 from src import models
@@ -244,7 +243,15 @@ async def db_engine(worker_id: str):
         for table in Base.metadata.tables.values():
             table.schema = original_schema
 
-        drop_database(test_db_url)
+        admin_engine = create_engine(test_db_url.set(database="postgres"))
+        try:
+            database_name = str(test_db_url.database).replace('"', '""')
+            with admin_engine.begin() as connection:
+                connection.execute(
+                    text(f'DROP DATABASE IF EXISTS "{database_name}" WITH (FORCE)')
+                )
+        finally:
+            admin_engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")
