@@ -58,6 +58,8 @@ def unwrap_retry_error(exc: BaseException) -> BaseException:
         last_attempt = getattr(current, "last_attempt", None)
         if last_attempt is None:
             return current
+        if not last_attempt.done():
+            return current
         try:
             cause = last_attempt.exception()
         except Exception:
