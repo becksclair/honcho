@@ -787,7 +787,7 @@ class TestSearchMemory:
 
         monkeypatch.setattr("src.utils.agent_tools.embedding_client.embed", fake_embed)
         monkeypatch.setattr(
-            "src.dialectic.retrieval.crud.query_documents_for_observers",
+            "src.dialectic.retrieval.query_documents_for_observers",
             fake_query_documents_for_observers,
         )
         monkeypatch.setattr(
