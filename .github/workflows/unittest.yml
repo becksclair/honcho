@@ -98,7 +98,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run Tests
-        run: uv run pytest -x -n 0
+        run: uv run --with pytest-timeout pytest -x -n 0 --timeout=300
         env:
           DB_CONNECTION_URI: postgresql+psycopg://postgres:postgres@localhost:5432/test_db
           AUTH_USE_AUTH: false
