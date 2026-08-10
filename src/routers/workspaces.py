@@ -186,6 +186,9 @@ async def get_queue_status(
     not lifetime totals.
     """
     try:
+        observer_id = observer_id or None
+        sender_id = sender_id or None
+        session_id = session_id or None
         if observer_id is not None:
             observer_id = await resolve_peer_id(db, workspace_id, observer_id)
         if sender_id is not None:
