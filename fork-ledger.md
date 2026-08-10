@@ -10,6 +10,7 @@ Last upgrade record: `none`
 ## Fork support paths
 
 - `AGENTS.md`
+- `.github/workflows/unified-tests.yml`
 
 ## Active seams
 

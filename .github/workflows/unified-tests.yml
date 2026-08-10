@@ -1,11 +1,9 @@
 name: Unified Tests (Fly Runner)
 
+# Fly-backed unified tests are disabled until the runner integration is restored.
+# Keep this workflow manually dispatchable without requiring a token on every push.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'tests/**'
+  workflow_dispatch:
 
 permissions:
   contents: read

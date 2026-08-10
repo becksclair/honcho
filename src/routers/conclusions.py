@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Body, Depends, Path, Query
 from fastapi_pagination import Page
@@ -31,9 +32,15 @@ def _serialize_conclusion(document: models.Document) -> schemas.Conclusion:
 
 
 def _serialize_conclusions(
-    documents: list[models.Document],
+    documents: Sequence[models.Document],
 ) -> list[schemas.Conclusion]:
     return [_serialize_conclusion(document) for document in documents]
+
+
+async def _serialize_conclusions_for_pagination(
+    documents: Sequence[models.Document],
+) -> list[schemas.Conclusion]:
+    return _serialize_conclusions(documents)
 
 
 router = APIRouter(
@@ -128,7 +135,11 @@ async def list_conclusions(
         reverse=reverse or False,
     )
 
-    return await apaginate(db, stmt, transformer=_serialize_conclusions)
+    return await apaginate(
+        db,
+        stmt,
+        transformer=_serialize_conclusions_for_pagination,
+    )
 
 
 @router.post(
