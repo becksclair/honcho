@@ -103,6 +103,7 @@ jobs:
           DB_CONNECTION_URI: postgresql+psycopg://postgres:postgres@localhost:5432/test_db
           AUTH_USE_AUTH: false
           SENTRY_ENABLED: false
+          EMBEDDING_VECTOR_DIMENSIONS: 1536
           LLM_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LLM_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LLM_OPENAI_COMPATIBLE_API_KEY: test-key
