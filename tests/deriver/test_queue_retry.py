@@ -301,6 +301,7 @@ class TestReplayDeadLetters:
         representation_item: models.QueueItem,
         captured_events: list[Any],  # noqa: ARG002  (patches emit to a no-op sink)
     ) -> None:
+        _ = captured_events  # Fixture patches event emission for this test.
         item = representation_item
         work_unit_key = item.work_unit_key
         item_id = item.id
@@ -330,7 +331,7 @@ class TestReplayDeadLetters:
             (
                 await db_session.execute(
                     select(models.QueueItem).where(
-                        ~models.QueueItem.processed  # pyright: ignore[reportGeneralTypeIssues]
+                        ~models.QueueItem.processed
                     )
                 )
             )
