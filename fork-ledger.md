@@ -11,6 +11,7 @@ Last upgrade record: `none`
 
 - `AGENTS.md`
 - `.github/workflows/unified-tests.yml`
+- `.github/workflows/unittest.yml`
 
 ## Active seams
 
