@@ -243,7 +243,9 @@ async def db_engine(worker_id: str):
         for table in Base.metadata.tables.values():
             table.schema = original_schema
 
-        admin_engine = create_engine(test_db_url.set(database="postgres"))
+        admin_engine = create_engine(
+            test_db_url.set(database="postgres"), isolation_level="AUTOCOMMIT"
+        )
         try:
             database_name = str(test_db_url.database).replace('"', '""')
             with admin_engine.begin() as connection:
