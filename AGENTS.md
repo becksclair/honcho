@@ -266,39 +266,14 @@ into chat or reports. Redact names, IDs, transcripts, locations, exact private
 facts, tokens, and file paths unless the user explicitly asks for raw evidence
 and it is safe to show.
 
-## Fork Carry Contract
+<!-- fork-repo:managed-policy:start -->
+## Long-lived fork
 
-This repository is a long-lived fork. `fork-ledger.md` is the single source of
-truth for intentional divergence from upstream. Carry behavior seams, not old
-commits.
+This repository is managed by the `fork-repo` skill. `fork-ledger.md` is the active contract for intentional behavior beyond the recorded upstream lineage.
 
-For every upstream upgrade:
-
-1. Fetch upstream and choose an exact tag or commit.
-2. Create `backup/pre-replay-TARGET` from the current fork head.
-3. Start `fork/replay-TARGET` from that exact upstream target; never replay on
-   `main`.
-4. Copy the ledger and this contract first, then re-evaluate every seam against
-   the new target.
-5. Reimplement still-required behavior against the target. Do not blindly
-   rebase or cherry-pick the fork's historical commit series.
-6. Run the focused proof named by each seam, then update ledger evidence and
-   absorption decisions before merging.
-
-Baseline closeout checks:
-
-```bash
-python /home/bex/.agents/skills/fork-repo/scripts/validate_fork_ledger.py --repo /home/bex/honcho
-.venv/bin/pytest -q tests/llm/test_backends/test_codex.py tests/llm/test_codex_auth.py tests/llm/test_codex_registry.py tests/llm/test_codex_tool_loop.py
-python -m py_compile src/deriver/retry_policy.py src/deriver/dead_letter.py src/deriver/queue_manager.py migrations/versions/33bb37bb59ee_add_queue_retry_columns_and_dead_letter_.py
-(cd mcp && bun run typecheck:node && bun test)
-python -c 'import tomllib; tomllib.load(open("config.toml", "rb")); print("toml-ok")'
-docker compose -f docker-compose.yml.example -f docker-compose.override.yml config --quiet
-git diff --check
-```
-
-The deriver pytest/migration lane requires a disposable Postgres endpoint via
-`DB_CONNECTION_URI`; never aim it at the live Honcho database. Other live proofs
-involving subscription auth, production data, public OAuth, Cloudflare, service
-restarts, or memory replay are deferred until the upgrade reaches the explicitly
-authorized operational surface.
+- Before changing fork-owned code, query relevant seams with `python ~/.agents/skills/fork-repo/scripts/fork_repo.py --repo . query --path path/to/file`; read the full ledger for cross-seam work or upstream upgrades.
+- New intentional divergence must belong to an existing seam or receive a new seam in the same change. Update an existing seam only when its contract, upstream gap, absorption condition, anchors, touchpoints, consumers, upstream lineage, or proof changes.
+- Commits are transport; seams are acceptance units. During an upstream upgrade, reassess every old seam against the pristine exact target and carry only behavior that remains necessary.
+- The managed Git hooks validate the staged commit candidate and commits being pushed. Do not bypass them to land an invalid ledger; use `python ~/.agents/skills/fork-repo/scripts/fork_repo.py --repo . validate` for an explicit strict check.
+- Use `/fork-repo upgrade <target>` for the managed upgrade workflow rather than rebasing/cherry-picking the fork wholesale.
+<!-- fork-repo:managed-policy:end -->
