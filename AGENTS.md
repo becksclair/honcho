@@ -58,7 +58,12 @@ Current live model backbone:
 
 - All Honcho text-generation lanes use `openai/deepseek-v4-flash-free` through
   `https://opencode.ai/zen/v1`: deriver, summaries, dream deduction/induction,
-  and every Dialectic reasoning level.
+  and every Dialectic reasoning level. In `config-deepseek-free-primary.toml`
+  only, each generative lane has an independent OpenAI-transport fallback to
+  NVIDIA NIM `deepseek-ai/deepseek-v4-flash-0731` at
+  `https://integrate.api.nvidia.com/v1`, with `NVIDIA_API_KEY` supplied only by
+  runtime secret environment. The NIM fallback normalizes reasoning to `high`;
+  the deriver fallback also retains `structured_output_mode = "json_object"`.
 - Deriver keeps `structured_output_mode = "json_object"`; Dialectic uses
   `TOOL_CHOICE = "auto"` at every level because the provider rejects forced
   `any`/`required` tool choice.

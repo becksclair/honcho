@@ -5,7 +5,9 @@
 # LLM STRATEGY:
 #   All text generation, structured output, and Dialectic tool loops use
 #   deepseek-v4-flash-free through OpenCode Zen's OpenAI-compatible endpoint.
-#   Embeddings stay local via Ollama (bge-m3:latest, 1024-dim).
+#   Every generative lane falls back to NVIDIA NIM DeepSeek V4 Flash 0731
+#   when the primary route exhausts its retry budget. Embeddings stay local
+#   via Ollama (bge-m3:latest, 1024-dim).
 
 [app]
 LOG_LEVEL = "INFO"
@@ -80,6 +82,16 @@ structured_output_mode = "json_object"
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
 
+[deriver.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+structured_output_mode = "json_object"
+
+[deriver.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
 [dialectic]
 MAX_OUTPUT_TOKENS = 8192
 MAX_INPUT_TOKENS = 100000
@@ -100,6 +112,15 @@ thinking_effort = "high"
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
 
+[dialectic.levels.minimal.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dialectic.levels.minimal.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
 [dialectic.levels.low]
 MAX_TOOL_ITERATIONS = 4
 TOOL_CHOICE = "auto"
@@ -112,6 +133,15 @@ thinking_effort = "high"
 [dialectic.levels.low.model_config.overrides]
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic.levels.low.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dialectic.levels.low.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
 
 [dialectic.levels.medium]
 MAX_TOOL_ITERATIONS = 6
@@ -126,6 +156,15 @@ thinking_effort = "high"
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
 
+[dialectic.levels.medium.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dialectic.levels.medium.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
 [dialectic.levels.high]
 MAX_TOOL_ITERATIONS = 8
 TOOL_CHOICE = "auto"
@@ -139,6 +178,15 @@ thinking_effort = "xhigh"
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
 
+[dialectic.levels.high.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dialectic.levels.high.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
 [dialectic.levels.max]
 MAX_TOOL_ITERATIONS = 12
 TOOL_CHOICE = "auto"
@@ -151,6 +199,15 @@ thinking_effort = "max"
 [dialectic.levels.max.model_config.overrides]
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dialectic.levels.max.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dialectic.levels.max.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
 
 [summary]
 ENABLED = true
@@ -167,6 +224,15 @@ thinking_effort = "high"
 [summary.model_config.overrides]
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[summary.model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[summary.model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
 
 [dream]
 ENABLED = true
@@ -186,6 +252,15 @@ thinking_effort = "max"
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
 
+[dream.deduction_model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dream.deduction_model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
 [dream.induction_model_config]
 transport = "openai"
 model = "deepseek-v4-flash-free"
@@ -194,6 +269,15 @@ thinking_effort = "max"
 [dream.induction_model_config.overrides]
 base_url = "https://opencode.ai/zen/v1"
 api_key_env = "OPENCODE_ZEN_API_KEY"
+
+[dream.induction_model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[dream.induction_model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
 
 [dream.surprisal]
 ENABLED = true

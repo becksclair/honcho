@@ -194,7 +194,7 @@ Kind: `build`
 Criticality: `high`
 
 Contract:
-The self-hosted deployment carries explicit model/transport profiles and live policy for effort, tier, concurrency, retries, embeddings, and fallback behavior, while keeping operator backup files out of Git.
+The self-hosted deployment carries explicit model/transport profiles and live policy for effort, tier, concurrency, retries, embeddings, and fallback behavior, while keeping operator backup files out of Git. The DeepSeek-free production profile keeps OpenCode Zen as primary but gives every generative lane an independent NVIDIA NIM DeepSeek V4 Flash 0731 fallback using runtime-only credentials.
 
 Upstream gap:
 The recorded upstream base does not contain these local production profiles or the deployment-specific model routing policy.
@@ -213,9 +213,11 @@ Fork touchpoints:
 - `config-codex-primary.toml`
 - `config-deepseek-free-primary.toml`
 - `config-deepseek-primary.toml`
+- `tests/llm/test_deepseek_free_production_profile.py`
 
 Proof:
 - Fork command: `python -c 'import tomllib; [tomllib.load(open(p,"rb")) for p in ("config.toml","config-codex-primary.toml","config-deepseek-free-primary.toml","config-deepseek-primary.toml")]; print("toml-ok")'`.
+- Fork command: `uv run pytest -q tests/llm/test_deepseek_free_production_profile.py tests/llm/test_model_config.py`.
 - Upstream manual: inspect production/local model profiles and the equivalent settings on the recorded upstream base.
 - Upstream expected: the fork's model profiles and deployment policy are absent.
 - Fork expected: every tracked profile parses and the selected deployment profile maps to valid Honcho model configuration.
