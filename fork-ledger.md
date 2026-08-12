@@ -1,8 +1,8 @@
 # Fork Ledger
 
-Schema: `3`
+Schema: `4`
 Upstream remote: `upstream`
-Upstream ref: `upstream/main`
+Upstream ref: `refs/remotes/upstream/main`
 Current upstream base: `602347d76c4e5e464e883f5df32b5bad5aa7952b`
 Current upstream label: `v3.0.11`
 Last upgrade record: `none`

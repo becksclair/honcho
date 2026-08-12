@@ -272,6 +272,7 @@ facts, tokens, and file paths unless the user explicitly asks for raw evidence
 and it is safe to show.
 
 <!-- fork-repo:managed-policy:start -->
+<!-- fork-repo:policy-version:1 -->
 ## Long-lived fork
 
 This repository is managed by the `fork-repo` skill. `fork-ledger.md` is the active contract for intentional behavior beyond the recorded upstream lineage.
