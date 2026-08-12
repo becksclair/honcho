@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import type { Response } from "express";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import type { AuthorizationParams, OAuthServerProvider } from "@modelcontextprotocol/sdk/server/auth/provider.js";
-import { AccessDeniedError, InvalidGrantError, InvalidRequestError, InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import { AccessDeniedError, InvalidClientMetadataError, InvalidGrantError, InvalidRequestError, InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { checkResourceAllowed, resourceUrlFromServerUrl } from "@modelcontextprotocol/sdk/shared/auth-utils.js";
@@ -14,7 +14,10 @@ export interface OAuthConfig {
   scopes: string[];
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
+  maxRetainedClients?: number;
 }
+
+const DEFAULT_MAX_RETAINED_CLIENTS = 500;
 
 interface CodeRecord {
   clientId: string;
@@ -58,7 +61,11 @@ function approvalPage(client: OAuthClientInformationFull, params: AuthorizationP
 }
 
 export class OAuthClientsStore implements OAuthRegisteredClientsStore {
-  constructor(private readonly hosts: string[], private readonly store: OAuthStateStore) {}
+  constructor(
+    private readonly hosts: string[],
+    private readonly store: OAuthStateStore,
+    private readonly maxRetainedClients = DEFAULT_MAX_RETAINED_CLIENTS,
+  ) {}
   getClient(clientId: string): OAuthClientInformationFull | undefined { return this.store.getClient(clientId); }
   registerClient(client: Omit<OAuthClientInformationFull, "client_id" | "client_id_issued_at">): OAuthClientInformationFull {
     if (!client.redirect_uris.every((uri) => redirectAllowed(uri, this.hosts))) {
@@ -72,7 +79,9 @@ export class OAuthClientsStore implements OAuthRegisteredClientsStore {
       grant_types: client.grant_types ?? ["authorization_code", "refresh_token"],
       response_types: client.response_types ?? ["code"],
     };
-    this.store.saveClient(result);
+    if (!this.store.saveClientIfBelowLimit(result, this.maxRetainedClients)) {
+      throw new InvalidClientMetadataError("Client registration capacity reached");
+    }
     return result;
   }
 }
@@ -83,8 +92,13 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
   private readonly resourceUrl: URL;
 
   constructor(private readonly config: OAuthConfig, mcpUrl: URL, private readonly store: OAuthStateStore) {
+    const maxRetainedClients = config.maxRetainedClients ?? DEFAULT_MAX_RETAINED_CLIENTS;
+    if (!Number.isSafeInteger(maxRetainedClients) || maxRetainedClients <= 0 ||
+      maxRetainedClients > DEFAULT_MAX_RETAINED_CLIENTS) {
+      throw new Error("OAuth maxRetainedClients must be an integer between 1 and 500");
+    }
     this.resourceUrl = resourceUrlFromServerUrl(mcpUrl);
-    this.clientsStore = new OAuthClientsStore(config.allowedRedirectHosts, store);
+    this.clientsStore = new OAuthClientsStore(config.allowedRedirectHosts, store, maxRetainedClients);
   }
 
   async authorize(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response): Promise<void> {

@@ -24,6 +24,7 @@ interface StateFile {
 export interface OAuthStateStore {
   getClient(clientId: string): OAuthClientInformationFull | undefined;
   saveClient(client: OAuthClientInformationFull): void;
+  saveClientIfBelowLimit(client: OAuthClientInformationFull, maxClients: number): boolean;
   getToken(hash: string, type: OAuthTokenType): StoredOAuthToken | undefined;
   saveToken(token: StoredOAuthToken): void;
   deleteToken(hash: string, type?: OAuthTokenType): void;
@@ -48,6 +49,14 @@ export class FileOAuthStateStore implements OAuthStateStore {
   saveClient(client: OAuthClientInformationFull): void {
     this.state.clients[client.client_id] = client;
     this.flush();
+  }
+
+  saveClientIfBelowLimit(client: OAuthClientInformationFull, maxClients: number): boolean {
+    this.state = this.read();
+    if (!(client.client_id in this.state.clients) &&
+      Object.keys(this.state.clients).length >= maxClients) return false;
+    this.saveClient(client);
+    return true;
   }
 
   getToken(hash: string, type: OAuthTokenType): StoredOAuthToken | undefined {

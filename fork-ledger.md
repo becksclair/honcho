@@ -338,7 +338,7 @@ Kind: `integration`
 Criticality: `critical`
 
 Contract:
-The Node MCP deployment exposes persistent proxy-aware Streamable HTTP with owner-password OAuth, DCR, PKCE, exact redirect validation, refresh/revocation, hashed token persistence, server-side Honcho authorization, and rejection of unsupported standalone SSE streams.
+The Node MCP deployment exposes persistent proxy-aware Streamable HTTP with owner-password OAuth, DCR bounded to 500 retained client registrations, PKCE, exact redirect validation, refresh/revocation, hashed token persistence, server-side Honcho authorization, and rejection of unsupported standalone SSE streams.
 
 Upstream gap:
 The recorded upstream base does not provide this Node HTTP/OAuth deployment, its proxy/public-URL security policy, persisted OAuth lifecycle, or transport tests.
@@ -373,7 +373,7 @@ Proof:
 - Fork command: `cd mcp && bun run typecheck:node && bun test`.
 - Upstream manual: inspect the Node MCP transport/auth/deployment surface on the recorded upstream base.
 - Upstream expected: the persistent HTTP/OAuth deployment and its security/transport contract are absent.
-- Fork expected: Node typecheck/tests pass, standalone SSE is rejected, and authorized integration proof survives OAuth token refresh/restart behind the configured proxy.
+- Fork expected: Node typecheck/tests pass, standalone SSE is rejected, dynamic registration rejects client 501 without losing the first 500 registrations, and authorized integration proof survives OAuth token refresh/restart behind the configured proxy.
 
 Consumers:
 - The public ChatGPT-facing Honcho MCP deployment.
