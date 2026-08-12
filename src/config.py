@@ -1137,6 +1137,7 @@ class SummarySettings(HonchoSettings):
         )
 
     MODEL_CONFIG: ConfiguredModelSettings = Field(default_factory=_MODEL_CONFIG_DEFAULT)
+    SHORT_MODEL_CONFIG: ConfiguredModelSettings | None = None
 
     @model_validator(mode="before")
     @classmethod

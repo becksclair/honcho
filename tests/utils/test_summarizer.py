@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.config import settings
+from src.config import ConfiguredModelSettings, settings
 from src.llm import HonchoLLMCallResponse
 from src.utils.summarizer import (
     Summary,
@@ -224,7 +224,7 @@ class TestCreateSummary:
 
 @pytest.mark.asyncio
 class TestSummaryCallerMigration:
-    async def test_create_short_summary_uses_model_config(self):
+    async def test_create_short_summary_falls_back_to_model_config(self):
         mock_response = HonchoLLMCallResponse(
             content="short summary",
             input_tokens=10,
@@ -232,11 +232,14 @@ class TestSummaryCallerMigration:
             finish_reasons=["STOP"],
         )
 
-        with patch(
-            "src.utils.summarizer.honcho_llm_call",
-            new_callable=AsyncMock,
-            return_value=mock_response,
-        ) as mock_llm_call:
+        with (
+            patch.object(settings.SUMMARY, "SHORT_MODEL_CONFIG", None),
+            patch(
+                "src.utils.summarizer.honcho_llm_call",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ) as mock_llm_call,
+        ):
             await create_short_summary(
                 formatted_messages=_FORMATTED_MESSAGES,
                 input_tokens=_INPUT_TOKENS,
@@ -246,11 +249,40 @@ class TestSummaryCallerMigration:
         await_args = mock_llm_call.await_args
         if await_args is None:
             raise AssertionError("Expected summary LLM call")
-        kwargs = await_args.kwargs
         expected_config = settings.SUMMARY.MODEL_CONFIG
-        assert "model_config" in kwargs
-        assert kwargs["model_config"].model == expected_config.model
-        assert "llm_settings" not in kwargs
+        assert await_args.kwargs["model_config"] is expected_config
+        assert "llm_settings" not in await_args.kwargs
+
+    async def test_create_short_summary_uses_short_model_override(self):
+        mock_response = HonchoLLMCallResponse(
+            content="short summary",
+            input_tokens=10,
+            output_tokens=5,
+            finish_reasons=["STOP"],
+        )
+        short_config = ConfiguredModelSettings(
+            transport="openai",
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
+        )
+
+        with (
+            patch.object(settings.SUMMARY, "SHORT_MODEL_CONFIG", short_config),
+            patch(
+                "src.utils.summarizer.honcho_llm_call",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ) as mock_llm_call,
+        ):
+            await create_short_summary(
+                formatted_messages=_FORMATTED_MESSAGES,
+                input_tokens=_INPUT_TOKENS,
+                previous_summary=None,
+            )
+
+        await_args = mock_llm_call.await_args
+        if await_args is None:
+            raise AssertionError("Expected summary LLM call")
+        assert await_args.kwargs["model_config"] is short_config
 
     async def test_create_long_summary_uses_model_config(self):
         mock_response = HonchoLLMCallResponse(
@@ -275,6 +307,5 @@ class TestSummaryCallerMigration:
             raise AssertionError("Expected summary LLM call")
         kwargs = await_args.kwargs
         expected_config = settings.SUMMARY.MODEL_CONFIG
-        assert "model_config" in kwargs
-        assert kwargs["model_config"].model == expected_config.model
+        assert kwargs["model_config"] is expected_config
         assert "llm_settings" not in kwargs

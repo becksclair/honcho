@@ -3,10 +3,11 @@
 # Data sovereignty: all memory/state stays on Saga (PostgreSQL + Redis).
 #
 # LLM STRATEGY:
-#   All text generation, structured output, and Dialectic tool loops use
-#   deepseek-v4-flash-free through OpenCode Zen's OpenAI-compatible endpoint.
-#   Every generative lane falls back to NVIDIA NIM DeepSeek V4 Flash 0731
-#   when the primary route exhausts its retry budget. Embeddings stay local
+#   Short summaries use NVIDIA Nemotron 3.5 Lightning with a native 128-token
+#   reasoning budget. All other text generation, structured output, and
+#   Dialectic tool loops use deepseek-v4-flash-free through OpenCode Zen.
+#   DeepSeek lanes fall back to NVIDIA NIM DeepSeek V4 Flash 0731; the short
+#   summary lane uses that model as its own fallback. Embeddings stay local
 #   via Ollama (bge-m3:latest, 1024-dim).
 
 [app]
@@ -215,6 +216,29 @@ MESSAGES_PER_SHORT_SUMMARY = 16
 MESSAGES_PER_LONG_SUMMARY = 48
 MAX_TOKENS_SHORT = 1200
 MAX_TOKENS_LONG = 5000
+
+[summary.short_model_config]
+transport = "openai"
+model = "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+[summary.short_model_config.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
+[summary.short_model_config.overrides.provider_params.extra_body]
+reasoning_budget = 128
+
+[summary.short_model_config.overrides.provider_params.extra_body.chat_template_kwargs]
+enable_thinking = true
+
+[summary.short_model_config.fallback]
+transport = "openai"
+model = "deepseek-ai/deepseek-v4-flash-0731"
+thinking_effort = "high"
+
+[summary.short_model_config.fallback.overrides]
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
 
 [summary.model_config]
 transport = "openai"

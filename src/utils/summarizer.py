@@ -81,7 +81,11 @@ __all__ = [
 ]
 
 
-def _get_summary_model_config() -> ConfiguredModelSettings:
+def _get_short_summary_model_config() -> ConfiguredModelSettings:
+    return settings.SUMMARY.SHORT_MODEL_CONFIG or settings.SUMMARY.MODEL_CONFIG
+
+
+def _get_long_summary_model_config() -> ConfiguredModelSettings:
     return settings.SUMMARY.MODEL_CONFIG
 
 
@@ -224,7 +228,7 @@ async def create_short_summary(
     # No session_id or run_id for tracing
     trace_id = generate_nanoid()
     return await honcho_llm_call(
-        model_config=_get_summary_model_config(),
+        model_config=_get_short_summary_model_config(),
         prompt=prompt,
         max_tokens=settings.SUMMARY.MAX_TOKENS_SHORT,
         telemetry=LLMTelemetryContext(
@@ -262,7 +266,7 @@ async def create_long_summary(
     # No session_id or run_id for tracing
     trace_id = generate_nanoid()
     return await honcho_llm_call(
-        model_config=_get_summary_model_config(),
+        model_config=_get_long_summary_model_config(),
         prompt=prompt,
         max_tokens=settings.SUMMARY.MAX_TOKENS_LONG,
         telemetry=LLMTelemetryContext(

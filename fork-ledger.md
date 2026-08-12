@@ -190,21 +190,23 @@ Replay notes:
 
 ### production-model-policy
 
-Kind: `build`
+Kind: `runtime`
 Criticality: `high`
 
 Contract:
-The self-hosted deployment carries explicit model/transport profiles and live policy for effort, tier, concurrency, retries, embeddings, and fallback behavior, while keeping operator backup files out of Git. The DeepSeek-free production profile keeps OpenCode Zen as primary but gives every generative lane an independent NVIDIA NIM DeepSeek V4 Flash 0731 fallback using runtime-only credentials.
+The self-hosted deployment carries explicit model/transport profiles and live routing policy for effort, tier, concurrency, retries, embeddings, and fallbacks, while keeping operator backup files out of Git. Summary generation supports an optional short-summary model route that falls back to the ordinary summary model when unset, so short and long summaries can use different substrates without changing existing deployments. The DeepSeek-free production profile routes short summaries to NVIDIA NIM Nemotron 3.5 Lightning with native 128-token reasoning and DeepSeek NIM fallback, while long summaries and every other generative lane keep OpenCode Zen DeepSeek V4 Flash as primary with independent NVIDIA NIM DeepSeek V4 Flash 0731 fallback.
 
 Upstream gap:
-The recorded upstream base does not contain these local production profiles or the deployment-specific model routing policy.
+The recorded upstream base does not contain these local production profiles, the deployment-specific model routing policy, or an independent short-summary model route.
 
 Absorbed when:
-The deployment no longer needs repository-tracked local model policy/profiles, or another authoritative deployment source fully owns the same settings.
+The deployment no longer needs repository-tracked local model policy/profiles, or another authoritative deployment source fully owns the same settings and any required short-versus-long summary routing.
 
 Upstream anchors:
 - `config.toml`
-- `src/config.py::Settings`
+- `src/config.py::SummarySettings`
+- `src/utils/summarizer.py::create_short_summary`
+- `src/utils/summarizer.py::create_long_summary`
 - `docker-compose.yml.example`
 
 Fork touchpoints:
@@ -213,22 +215,27 @@ Fork touchpoints:
 - `config-codex-primary.toml`
 - `config-deepseek-free-primary.toml`
 - `config-deepseek-primary.toml`
+- `src/config.py`
+- `src/utils/summarizer.py`
 - `tests/llm/test_deepseek_free_production_profile.py`
 - `tests/crud/test_document.py`
+- `tests/utils/test_summarizer.py`
 
 Proof:
 - Fork command: `python -c 'import tomllib; [tomllib.load(open(p,"rb")) for p in ("config.toml","config-codex-primary.toml","config-deepseek-free-primary.toml","config-deepseek-primary.toml")]; print("toml-ok")'`.
 - Fork command: `uv run pytest -q tests/llm/test_deepseek_free_production_profile.py tests/llm/test_model_config.py`.
 - Fork command: `uv run pytest -q tests/crud/test_document.py` against a disposable PostgreSQL endpoint with the configured embedding vector dimensions.
-- Upstream manual: inspect production/local model profiles and the equivalent settings on the recorded upstream base.
-- Upstream expected: the fork's model profiles and deployment policy are absent.
-- Fork expected: every tracked profile parses and the selected deployment profile maps to valid Honcho model configuration.
+- Fork command: `uv run pytest -q tests/utils/test_summarizer.py` against a disposable test PostgreSQL endpoint.
+- Fork manual: resolve the active short and long summary configs in a fresh process, confirm Lightning emits native `chat_template_kwargs.enable_thinking=true` plus `reasoning_budget=128` without generic `thinking_effort`, and run one real short-summary plus one real long-summary call without persisting synthetic summaries.
+- Upstream manual: inspect production/local model profiles and summary model selection on the recorded upstream base.
+- Upstream expected: the fork's model profiles/deployment policy are absent and short summaries cannot independently select a model route.
+- Fork expected: existing configs without `SHORT_MODEL_CONFIG` still use `MODEL_CONFIG` for both summary types; the production profile resolves Lightning only for short summaries and DeepSeek for long summaries/other lanes.
 
 Consumers:
-- Saga/Asgard self-hosted Honcho deployment configuration.
+- Saga/Asgard self-hosted Honcho deployment configuration and summary workers.
 
 Replay notes:
-- Merge new upstream settings field-by-field; keep secrets outside Git and do not treat a model-provider default as equivalent to this deployment policy.
+- Merge new upstream settings field-by-field; keep secrets outside Git and do not treat a model-provider default as equivalent to this deployment policy. Preserve the optional short-summary override semantics so older deployments remain unchanged when the field is absent.
 
 ### local-compose-port-isolation
 
