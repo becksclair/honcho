@@ -214,10 +214,12 @@ Fork touchpoints:
 - `config-deepseek-free-primary.toml`
 - `config-deepseek-primary.toml`
 - `tests/llm/test_deepseek_free_production_profile.py`
+- `tests/crud/test_document.py`
 
 Proof:
 - Fork command: `python -c 'import tomllib; [tomllib.load(open(p,"rb")) for p in ("config.toml","config-codex-primary.toml","config-deepseek-free-primary.toml","config-deepseek-primary.toml")]; print("toml-ok")'`.
 - Fork command: `uv run pytest -q tests/llm/test_deepseek_free_production_profile.py tests/llm/test_model_config.py`.
+- Fork command: `uv run pytest -q tests/crud/test_document.py` against a disposable PostgreSQL endpoint with the configured embedding vector dimensions.
 - Upstream manual: inspect production/local model profiles and the equivalent settings on the recorded upstream base.
 - Upstream expected: the fork's model profiles and deployment policy are absent.
 - Fork expected: every tracked profile parses and the selected deployment profile maps to valid Honcho model configuration.
