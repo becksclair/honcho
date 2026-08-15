@@ -1,0 +1,58 @@
+{
+  "absorption": [
+    "Upstream adopts an equivalent guard for the local dev stack: the project is renamed away from the generic `honcho` namespace, the api/deriver services are gated behind a profile so a plain `up` starts only database/redis, and the deriver stays on the project network instead of external `honcho_data`/`outbound` networks."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Local dev deployments that must never shadow the Saga-hosted production Honcho stack or squat on the `honcho-*` container namespace."
+    }
+  ],
+  "contract": [
+    "The local dev stack template is named `honcho-dev`; the `api` and `deriver` services are gated behind the `app` profile so a plain `docker compose up` starts only `database` and `redis`; the `deriver` remains on the project network and never joins external `honcho_data`/`outbound` networks."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "docker-compose.yml.example"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "docker-compose-yml",
+  "kind": "runtime",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "docker compose -f docker-compose.yml.example config --format json | python -c 'import json,sys; d=json.load(sys.stdin); assert d[\"name\"] == \"honcho-dev\", d.get(\"name\"); assert set(d[\"services\"]) == {\"database\",\"redis\"}, set(d[\"services\"]); print(\"dev-compose-default-ok\")'",
+      "docker compose --profile app -f docker-compose.yml.example config --format json | python -c 'import json,sys; d=json.load(sys.stdin); assert d[\"name\"] == \"honcho-dev\", d.get(\"name\"); assert set(d[\"services\"]) == {\"api\",\"deriver\",\"database\",\"redis\"}, set(d[\"services\"]); assert d[\"services\"][\"api\"][\"profiles\"] == [\"app\"], d[\"services\"][\"api\"].get(\"profiles\"); assert d[\"services\"][\"deriver\"][\"profiles\"] == [\"app\"], d[\"services\"][\"deriver\"].get(\"profiles\"); assert set(d[\"services\"][\"deriver\"].get(\"networks\", {})) == {\"default\"}, d[\"services\"][\"deriver\"].get(\"networks\"); print(\"dev-compose-app-ok\")'"
+    ],
+    "fork_expected": "the merged Compose model is named honcho-dev; a plain render exposes only database/redis, and the app-profile render adds api/deriver behind the app profile with the deriver on the project network only.",
+    "upstream": [
+      "Inspect the recorded upstream base docker-compose.yml.example; the project name and profile gating must be absent."
+    ],
+    "upstream_expected": "the base template does not rename the project nor gate app services behind a profile."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "docker-compose.yml.example"
+    }
+  ],
+  "replay": [
+    "Reapply the guard (honcho-dev project name, `app` profile gating for api/deriver, no external networks on deriver) to docker-compose.yml.example on the next upstream update, and mirror it in the fork's docker-compose.yml."
+  ],
+  "touchpoints": [
+    "docker-compose.yml.example"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "docker-compose.yml.example"
+    }
+  ],
+  "upstream_gap": [
+    "The pristine upstream template stands up a parallel Honcho application stack under the generic `honcho` project namespace with no profile gating, which can shadow the Saga production deployment."
+  ],
+  "version": 1
+}

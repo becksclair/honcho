@@ -10,7 +10,7 @@ Important local files and services:
 
 - `config.toml` - live Honcho config for LLMs, deriver, dreams, embeddings, DB,
   and queue behavior.
-- `docker-compose.yml` - local Honcho stack.
+- `docker-compose.yml` - local dev stack (project `honcho-dev`; api/deriver are gated behind `--profile app`; production Honcho is the Saga deployment via `/opt/homelab/compose.yaml`, see below).
 - `honcho-api-1` - API container.
 - `honcho-deriver-1` - background deriver/dream/reconciler worker.
 - `honcho-database-1` - Postgres queue, documents, embeddings.

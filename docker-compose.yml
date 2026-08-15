@@ -1,15 +1,27 @@
-# Honcho Docker Compose
+# Honcho local dev stack (Docker Compose)
 #
 # Usage:
 #   cp docker-compose.yml.example docker-compose.yml
 #   cp .env.template .env  # edit with your provider config
-#   docker compose up -d --build
+#   docker compose up -d                  # database + redis only (dev infra)
+#   docker compose --profile app up -d --build  # + api + deriver (explicit)
+#
+# Guard: the project is named `honcho-dev` and the api/deriver services are
+# gated behind the `app` profile so a plain `up` can never stand up a parallel
+# Honcho application stack or squat on the `honcho-*` container namespace. The
+# production Honcho deployment is owned by the Saga homelab (docker compose
+# --profile honcho-app from /opt/homelab); never run this dev stack as a
+# production substitute.
 #
 # By default, ports are bound to 127.0.0.1 (localhost only).
 # For development, uncomment the source mounts and monitoring services below.
 
+name: honcho-dev
+
 services:
   api:
+    profiles:
+      - app
     build:
       context: .
       dockerfile: Dockerfile
@@ -47,6 +59,8 @@ services:
     restart: unless-stopped
 
   deriver:
+    profiles:
+      - app
     build:
       context: .
       dockerfile: Dockerfile
@@ -70,9 +84,6 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
-    networks:
-      - honcho_data
-      - outbound
 
   database:
     image: pgvector/pgvector:pg15
