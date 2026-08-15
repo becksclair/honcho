@@ -1,0 +1,114 @@
+{
+  "absorption": [
+    "Upstream provides equivalent configurable canonical peer aliases plus server-fixed identity with coverage across peer/session/message write paths."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "ChatGPT and other clients sharing the Node MCP tool layer."
+    }
+  ],
+  "contract": [
+    "Historical ChatGPT/user peer aliases are canonicalized at every shared MCP write boundary, while deployment configuration fixes trusted human/assistant defaults rather than letting callers redefine server identity."
+  ],
+  "criticality": "critical",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/peers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/sessions.ts"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "mcp-peer-identity-normalization",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "cd mcp && bun test`."
+    ],
+    "fork_expected": "alias/config tests pass and integration calls converge historical aliases to their canonical peer IDs.",
+    "upstream": [
+      "inspect peer/session/message identity handling on the recorded upstream base."
+    ],
+    "upstream_expected": "historical aliases can reach shared write boundaries without canonicalization and caller identity is not fixed by the same deployment policy."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/peers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/sessions.ts"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "mcp/src/node-config.test.ts",
+    "mcp/src/node-config.ts",
+    "mcp/src/peer-identity.test.ts",
+    "mcp/src/peer-identity.ts",
+    "mcp/src/tools/peers.ts",
+    "mcp/src/tools/sessions.ts"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "mcp/src/peer-identity.ts::canonicalizePeerId"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/peers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/sessions.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.ts"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base accepts caller-provided peer IDs without the fork's configurable canonical aliases and fixed deployment identity boundary."
+  ],
+  "version": 1
+}

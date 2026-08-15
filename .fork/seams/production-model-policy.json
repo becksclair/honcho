@@ -1,0 +1,154 @@
+{
+  "absorption": [
+    "The deployment no longer needs repository-tracked local model policy/profiles, or another authoritative deployment source fully owns the same settings and any required short-versus-long summary routing."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Saga/Asgard self-hosted Honcho deployment configuration and summary workers."
+    }
+  ],
+  "contract": [
+    "The self-hosted deployment carries explicit model/transport profiles and live routing policy for effort, tier, concurrency, retries, embeddings, and fallbacks, while keeping operator backup files out of Git. Summary generation supports an optional short-summary model route that falls back to the ordinary summary model when unset, so short and long summaries can use different substrates without changing existing deployments. The DeepSeek-free production profile routes short summaries to NVIDIA NIM Nemotron 3.5 Lightning with native 128-token reasoning and DeepSeek NIM fallback, while long summaries and every other generative lane keep OpenCode Zen DeepSeek V4 Flash as primary with independent NVIDIA NIM DeepSeek V4 Flash 0731 fallback."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": ".gitignore"
+    },
+    {
+      "kind": "path",
+      "value": "config-codex-primary.toml"
+    },
+    {
+      "kind": "path",
+      "value": "config-deepseek-free-primary.toml"
+    },
+    {
+      "kind": "path",
+      "value": "config-deepseek-primary.toml"
+    },
+    {
+      "kind": "path",
+      "value": "config.toml"
+    },
+    {
+      "kind": "path",
+      "value": "src/config.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/utils/summarizer.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/crud/test_document.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_deepseek_free_production_profile.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/utils/test_summarizer.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "production-model-policy",
+  "kind": "runtime",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "uv run pytest -q tests/utils/test_summarizer.py` against a disposable test PostgreSQL endpoint."
+    ],
+    "fork_expected": "existing configs without `SHORT_MODEL_CONFIG` still use `MODEL_CONFIG` for both summary types; the production profile resolves Lightning only for short summaries and DeepSeek for long summaries/other lanes.",
+    "upstream": [
+      "inspect production/local model profiles and summary model selection on the recorded upstream base."
+    ],
+    "upstream_expected": "the fork's model profiles/deployment policy are absent and short summaries cannot independently select a model route."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": ".gitignore"
+    },
+    {
+      "kind": "path",
+      "value": "config.toml"
+    },
+    {
+      "kind": "path",
+      "value": "config-codex-primary.toml"
+    },
+    {
+      "kind": "path",
+      "value": "config-deepseek-free-primary.toml"
+    },
+    {
+      "kind": "path",
+      "value": "config-deepseek-primary.toml"
+    },
+    {
+      "kind": "path",
+      "value": "src/config.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/utils/summarizer.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_deepseek_free_production_profile.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/crud/test_document.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/utils/test_summarizer.py"
+    }
+  ],
+  "replay": [
+    "Merge new upstream settings field-by-field; keep secrets outside Git and do not treat a model-provider default as equivalent to this deployment policy. Preserve the optional short-summary override semantics so older deployments remain unchanged when the field is absent."
+  ],
+  "touchpoints": [
+    ".gitignore",
+    "config-codex-primary.toml",
+    "config-deepseek-free-primary.toml",
+    "config-deepseek-primary.toml",
+    "config.toml",
+    "src/config.py",
+    "src/utils/summarizer.py",
+    "tests/crud/test_document.py",
+    "tests/llm/test_deepseek_free_production_profile.py",
+    "tests/utils/test_summarizer.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "config.toml"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/config.py::SummarySettings"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/utils/summarizer.py::create_short_summary"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/utils/summarizer.py::create_long_summary"
+    },
+    {
+      "kind": "path",
+      "value": "docker-compose.yml.example"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base does not contain these local production profiles, the deployment-specific model routing policy, or an independent short-summary model route."
+  ],
+  "version": 1
+}

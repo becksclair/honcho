@@ -1,0 +1,96 @@
+{
+  "absorption": [
+    "The migration is permanently retired after every maintained environment has converged, or upstream provides an equivalent guarded migration/verification path for the same data model."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Explicit operator-driven migration of maintained Honcho workspaces into the family workspace."
+    }
+  ],
+  "contract": [
+    "A reviewed manifest-driven operation can transactionally converge selected source workspaces into the canonical family workspace while preserving IDs, embeddings, reasoning/queue provenance, authoritative peer cards, excluded archives, failure state, rollback gates, and post-migration verification."
+  ],
+  "criticality": "critical",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "scripts/migrate_fam_workspace.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/operations/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/operations/fam_migration.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/operations/test_fam_migration.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "fam-workspace-migration",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      ".venv/bin/pytest -q tests/operations/test_fam_migration.py`."
+    ],
+    "fork_expected": "focused tests pass and disposable-PostgreSQL rehearsal preserves IDs/provenance/failure state while satisfying final verification gates.",
+    "upstream": [
+      "inspect workspace/identity migration operations on the recorded upstream base."
+    ],
+    "upstream_expected": "there is no equivalent manifest-driven guarded convergence operation."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "scripts/migrate_fam_workspace.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/operations/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/operations/fam_migration.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/operations/test_fam_migration.py"
+    }
+  ],
+  "replay": [
+    "Never execute during ordinary startup or replay. Real use requires stopped writers, verified full-database backup, current production-data preflight, and post-cutover verification."
+  ],
+  "touchpoints": [
+    "scripts/migrate_fam_workspace.py",
+    "src/operations/__init__.py",
+    "src/operations/fam_migration.py",
+    "tests/operations/test_fam_migration.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "src/operations/fam_migration.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/models.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/configuration.py"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base has no migration operation for this local multi-workspace/identity convergence contract."
+  ],
+  "version": 1
+}

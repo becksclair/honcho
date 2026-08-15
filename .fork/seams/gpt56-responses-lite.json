@@ -1,0 +1,101 @@
+{
+  "absorption": [
+    "The active subscription endpoint accepts upstream's request shape for GPT-5.6 and the fork's structured-output/tool-loop proof passes with the model-specific branch removed."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "GPT-5.6 models reached through the Codex subscription transport."
+    }
+  ],
+  "contract": [
+    "GPT-5.6 Codex models use the Responses-Lite request contract, including the protocol header, developer/input item shape, additional tools, encrypted reasoning context, and supported Codex client identity."
+  ],
+  "criticality": "critical",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "config.toml"
+    },
+    {
+      "kind": "path",
+      "value": "src/config.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/backends/codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_backends/test_codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_tool_loop.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "gpt56-responses-lite",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      ".venv/bin/pytest -q tests/llm/test_backends/test_codex.py tests/llm/test_codex_tool_loop.py`."
+    ],
+    "fork_expected": "GPT-5.6 request-shape and tool-loop tests pass; live structured/tool proof succeeds when explicitly authorized.",
+    "upstream": [
+      "inspect the Codex request builder and GPT-5.6 handling on the recorded upstream base."
+    ],
+    "upstream_expected": "there is no Responses-Lite model branch or corresponding protocol header/request contract."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "src/llm/backends/codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/config.py"
+    },
+    {
+      "kind": "path",
+      "value": "config.toml"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_backends/test_codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_tool_loop.py"
+    }
+  ],
+  "replay": [
+    "Re-check the live subscription protocol and accepted model identity on every upgrade; this seam is intentionally separable from the base Codex transport."
+  ],
+  "touchpoints": [
+    "config.toml",
+    "src/config.py",
+    "src/llm/backends/codex.py",
+    "tests/llm/test_backends/test_codex.py",
+    "tests/llm/test_codex_tool_loop.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "src/llm/backends/codex.py::_uses_responses_lite"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/llm/backends/codex.py::CodexResponsesClient._headers"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/llm/backends/codex.py::CodexResponsesBackend._build_request_body"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base has neither the GPT-5.6 model-specific Responses-Lite branch nor its protocol/request-shape tests."
+  ],
+  "version": 1
+}

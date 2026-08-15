@@ -1,0 +1,132 @@
+{
+  "absorption": [
+    "The local agent workflows move to another maintained source or upstream ships equivalent repository-versioned guidance and the local copies are no longer needed."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Local coding agents working in or against this Honcho fork."
+    }
+  ],
+  "contract": [
+    "The repository carries versioned agent instructions for inspecting Honcho, integrating it into applications, and migrating the Python and TypeScript SDKs."
+  ],
+  "criticality": "medium",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": ".agents/skills/honcho-cli/SKILL.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/honcho-integration/SKILL.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/honcho-integration/references/bot-frameworks.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/honcho-integration/references/bot-frameworks/nanobot/client.py"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/honcho-integration/references/bot-frameworks/nanobot/honcho_tool.py"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/honcho-integration/references/bot-frameworks/nanobot/session.py"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/migrate-honcho-py/DETAILED-CHANGES.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/migrate-honcho-py/MIGRATION-CHECKLIST.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/migrate-honcho-py/SKILL.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/migrate-honcho-ts/DETAILED-CHANGES.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/migrate-honcho-ts/MIGRATION-CHECKLIST.md"
+    },
+    {
+      "kind": "path",
+      "value": ".agents/skills/migrate-honcho-ts/SKILL.md"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "bundled-agent-skills",
+  "kind": "proof",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "verify each bundled skill has a readable `SKILL.md`, its relative references resolve, and examples match the replayed Honcho SDK versions."
+    ],
+    "fork_expected": "all four skill families and their referenced support files are present and internally coherent.",
+    "upstream": [
+      "inspect the same `.agents/skills` paths on the recorded upstream base."
+    ],
+    "upstream_expected": "the local Honcho inspection/integration/migration skills are absent."
+  },
+  "query_scopes": [
+    {
+      "kind": "glob",
+      "value": ".agents/skills/honcho-cli/**"
+    },
+    {
+      "kind": "glob",
+      "value": ".agents/skills/honcho-integration/**"
+    },
+    {
+      "kind": "glob",
+      "value": ".agents/skills/migrate-honcho-py/**"
+    },
+    {
+      "kind": "glob",
+      "value": ".agents/skills/migrate-honcho-ts/**"
+    }
+  ],
+  "replay": [
+    "The duplicated historical `migrate skills` commits are one behavioral seam, not two carries."
+  ],
+  "touchpoints": [
+    ".agents/skills/honcho-cli/SKILL.md",
+    ".agents/skills/honcho-integration/SKILL.md",
+    ".agents/skills/honcho-integration/references/bot-frameworks.md",
+    ".agents/skills/honcho-integration/references/bot-frameworks/nanobot/client.py",
+    ".agents/skills/honcho-integration/references/bot-frameworks/nanobot/honcho_tool.py",
+    ".agents/skills/honcho-integration/references/bot-frameworks/nanobot/session.py",
+    ".agents/skills/migrate-honcho-py/DETAILED-CHANGES.md",
+    ".agents/skills/migrate-honcho-py/MIGRATION-CHECKLIST.md",
+    ".agents/skills/migrate-honcho-py/SKILL.md",
+    ".agents/skills/migrate-honcho-ts/DETAILED-CHANGES.md",
+    ".agents/skills/migrate-honcho-ts/MIGRATION-CHECKLIST.md",
+    ".agents/skills/migrate-honcho-ts/SKILL.md"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": ".agents/skills"
+    },
+    {
+      "kind": "path",
+      "value": "pyproject.toml"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/package.json"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base does not contain these local agent skills or their integration/migration references."
+  ],
+  "version": 1
+}

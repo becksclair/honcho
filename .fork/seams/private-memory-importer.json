@@ -1,0 +1,65 @@
+{
+  "absorption": [
+    "Upstream or another maintained tool supports the same export format, normalization, identity mapping, and safe target selection."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Explicit operator-driven private-memory migrations."
+    }
+  ],
+  "contract": [
+    "OpenClaw private-memory exports can be normalized and replayed into an explicitly selected Honcho workspace without manual per-record API work."
+  ],
+  "criticality": "medium",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "scripts/import_openclaw_private_memory.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "private-memory-importer",
+  "kind": "proof",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "python -m py_compile scripts/import_openclaw_private_memory.py`."
+    ],
+    "fork_expected": "the importer compiles and its behavioral proof can run against a disposable workspace without touching production memory.",
+    "upstream": [
+      "inspect import/migration scripts on the recorded upstream base for this OpenClaw export contract."
+    ],
+    "upstream_expected": "no equivalent importer exists."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "scripts/import_openclaw_private_memory.py"
+    }
+  ],
+  "replay": [
+    "Never replay production memory merely because this file survives an upstream upgrade."
+  ],
+  "touchpoints": [
+    "scripts/import_openclaw_private_memory.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "scripts/import_openclaw_private_memory.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/workspaces.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/peers.py"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base does not include a compatible importer for the local OpenClaw private-memory export format and identity conventions."
+  ],
+  "version": 1
+}

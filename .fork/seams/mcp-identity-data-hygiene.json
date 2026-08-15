@@ -1,0 +1,92 @@
+{
+  "absorption": [
+    "Each relevant data invariant is permanently enforced and no maintained environment needs the corresponding historical repair."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Explicit operator-driven repair of historical Honcho data."
+    }
+  ],
+  "contract": [
+    "Reviewed opt-in SQL repairs can merge historical peer aliases and canonicalize legacy peer-card/display/memory text without being run automatically during service startup or fork upgrades."
+  ],
+  "criticality": "medium",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/scripts/canonicalize-sarah-bex-peer-card.sql"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/scripts/merge-chatgpt-peer-aliases.sql"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/scripts/replace-rebecca-clair-display-name.sql"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/scripts/replace-rebecca-clair-in-memory.sql"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "mcp-identity-data-hygiene",
+  "kind": "proof",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "restore a disposable database snapshot, capture preflight counts, run exactly one reviewed repair, inspect post-state/invariants, then discard the database."
+    ],
+    "fork_expected": "rehearsed scripts converge the intended historical records without being part of automatic startup/migration execution.",
+    "upstream": [
+      "inspect identity/data repair tooling on the recorded upstream base."
+    ],
+    "upstream_expected": "these local historical repair operations are absent."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "mcp/scripts/canonicalize-sarah-bex-peer-card.sql"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/scripts/merge-chatgpt-peer-aliases.sql"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/scripts/replace-rebecca-clair-display-name.sql"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/scripts/replace-rebecca-clair-in-memory.sql"
+    }
+  ],
+  "replay": [
+    "The scripts own their transactions; treat every real invocation as destructive and require a verified backup plus disposable rehearsal."
+  ],
+  "touchpoints": [
+    "mcp/scripts/canonicalize-sarah-bex-peer-card.sql",
+    "mcp/scripts/merge-chatgpt-peer-aliases.sql",
+    "mcp/scripts/replace-rebecca-clair-display-name.sql",
+    "mcp/scripts/replace-rebecca-clair-in-memory.sql"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "src/identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/models.py"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base has no repair scripts for these local historical identity/data invariants."
+  ],
+  "version": 1
+}

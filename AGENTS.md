@@ -275,14 +275,14 @@ facts, tokens, and file paths unless the user explicitly asks for raw evidence
 and it is safe to show.
 
 <!-- fork-repo:managed-policy:start -->
-<!-- fork-repo:policy-version:1 -->
+<!-- fork-repo:core2-policy-version:1 -->
 ## Long-lived fork
 
-This repository is managed by the `fork-repo` skill. `fork-ledger.md` is the active contract for intentional behavior beyond the recorded upstream lineage.
+This repository is managed by Fork Repo Core 2. Machine-authoritative state lives under `.fork/`; `fork-ledger.md` is a generated human view.
 
-- Before changing fork-owned code, query relevant seams with `python ~/.agents/skills/fork-repo/scripts/fork_repo.py --repo . query --path path/to/file`; read the full ledger for cross-seam work or upstream upgrades.
-- New intentional divergence must belong to an existing seam or receive a new seam in the same change. Update an existing seam only when its contract, upstream gap, absorption condition, anchors, touchpoints, consumers, upstream lineage, or proof changes.
-- Commits are transport; seams are acceptance units. During an upstream upgrade, reassess every old seam against the pristine exact target and carry only behavior that remains necessary.
-- The managed Git hooks validate the staged commit candidate and commits being pushed. Do not bypass them to land an invalid ledger; use `python ~/.agents/skills/fork-repo/scripts/fork_repo.py --repo . validate` for an explicit strict check.
-- Use `/fork-repo upgrade <target>` for the managed upgrade workflow rather than rebasing/cherry-picking the fork wholesale.
+- Before changing fork-owned code, query relevant seams with `python ~/.agents/skills/fork-repo/scripts/fork_repo.py --repo . query --path path/to/file`.
+- Every intentional product divergence path must be owned by one or more active seams. Exact support paths are reserved for fork infrastructure and never confer product ownership.
+- Commits are transport; seams are acceptance units. Update or create a seam only when the behavioral contract, upstream gap, absorption condition, ownership, anchors, consumers, lineage, proof, or replay guidance changes.
+- Use the managed upgrade workflow for upstream upgrades. Start from the exact pristine target and disposition every old seam explicitly.
+- Run `python ~/.agents/skills/fork-repo/scripts/fork_repo.py --repo . repair` when generated views are stale, then `validate` before committing.
 <!-- fork-repo:managed-policy:end -->

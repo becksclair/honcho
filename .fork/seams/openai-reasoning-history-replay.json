@@ -1,0 +1,83 @@
+{
+  "absorption": [
+    "Upstream history/tool-loop adapters preserve the same reasoning payload precedence and DeepSeek/OpenAI-compatible multi-turn tool calls succeed without this fork path."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "OpenAI-compatible reasoning providers, notably DeepSeek, during multi-turn tool execution."
+    }
+  ],
+  "contract": [
+    "OpenAI-compatible tool loops preserve provider-native assistant reasoning history: structured `reasoning_details` takes precedence when present, otherwise `thinking_content` is replayed as `reasoning_content` on the next tool turn."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "src/llm/history_adapters.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/tool_loop.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_history_adapters.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "openai-reasoning-history-replay",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      ".venv/bin/pytest -q tests/llm/test_history_adapters.py`."
+    ],
+    "fork_expected": "focused history-adapter tests preserve `reasoning_details` precedence and emit plain `reasoning_content` otherwise.",
+    "upstream": [
+      "inspect assistant tool-call history reconstruction on the recorded upstream base with `thinking_content` but no `reasoning_details`."
+    ],
+    "upstream_expected": "provider-native reasoning content is not replayed on the next tool turn."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "src/llm/history_adapters.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/tool_loop.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_history_adapters.py"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "src/llm/history_adapters.py",
+    "src/llm/tool_loop.py",
+    "tests/llm/test_history_adapters.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "src/llm/history_adapters.py::OpenAIHistoryAdapter.format_assistant_tool_message"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/llm/tool_loop.py::format_assistant_tool_message"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/llm/tool_loop.py::execute_tool_loop"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base drops provider-native plain reasoning content when rebuilding assistant tool-call history."
+  ],
+  "version": 1
+}

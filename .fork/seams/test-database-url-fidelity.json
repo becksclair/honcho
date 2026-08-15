@@ -1,0 +1,61 @@
+{
+  "absorption": [
+    "Upstream passes the URL object directly or otherwise renders it with credentials intact before creating the async engine."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Test suites using non-empty PostgreSQL passwords."
+    }
+  ],
+  "contract": [
+    "The async test database helper preserves the real password when rendering SQLAlchemy URL objects instead of passing a redacted `***` password string to the engine."
+  ],
+  "criticality": "low",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "tests/conftest.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "test-database-url-fidelity",
+  "kind": "proof",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "python -c 'from sqlalchemy.engine import make_url; u=make_url(\"postgresql+asyncpg://u:secret@localhost/db\"); assert \"***\" in str(u); assert \"secret\" in u.render_as_string(hide_password=False); print(\"url-fidelity-ok\")'`."
+    ],
+    "fork_expected": "the helper passes a rendered connection string containing the actual encoded credential to `create_async_engine`.",
+    "upstream": [
+      "inspect `setup_test_database` on the recorded upstream base."
+    ],
+    "upstream_expected": "the helper converts the URL through the password-redacting `str()` representation."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "tests/conftest.py"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "tests/conftest.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "tests/conftest.py::setup_test_database"
+    },
+    {
+      "kind": "path",
+      "value": "sqlalchemy.engine.URL.render_as_string"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base uses `str(db_url)`, whose SQLAlchemy string representation hides passwords and can make non-empty-password test database connections invalid."
+  ],
+  "version": 1
+}

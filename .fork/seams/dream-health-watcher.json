@@ -1,0 +1,65 @@
+{
+  "absorption": [
+    "Upstream or deployment observability provides equivalent concise dream/replay health evidence and the local watcher is no longer consumed."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Honcho operators diagnosing dream and replay health."
+    }
+  ],
+  "contract": [
+    "Operators can reduce dream/replay queue and log state to concise health output with stable 0/1/2 exit codes and bounded best-effort redaction of common sensitive identifiers."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "scripts/watch_dream_health.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "dream-health-watcher",
+  "kind": "proof",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "python -m py_compile scripts/watch_dream_health.py`."
+    ],
+    "fork_expected": "the watcher compiles; authorized live proof preserves exit-code meanings and known redactors while treating snippets as sensitive output.",
+    "upstream": [
+      "inspect dream/deriver operational tooling on the recorded upstream base."
+    ],
+    "upstream_expected": "no equivalent watcher with the local 0/1/2 summary contract exists."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "scripts/watch_dream_health.py"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "scripts/watch_dream_health.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "scripts/watch_dream_health.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dreamer"
+    },
+    {
+      "kind": "path",
+      "value": "src/deriver"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base lacks this local queue/log health watcher and its operator-facing exit-code contract."
+  ],
+  "version": 1
+}

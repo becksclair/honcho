@@ -1,0 +1,65 @@
+{
+  "absorption": [
+    "Upstream exposes suitable configurable iteration budgets or the deployed models reliably complete within upstream defaults and the local overrides can be removed."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Dream deduction and induction paths using tool-capable DeepSeek models."
+    }
+  ],
+  "contract": [
+    "Dream specialists have larger bounded tool-loop iteration budgets so DeepSeek-backed deduction/induction can complete valid multi-step work without premature loop exhaustion."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "src/dreamer/specialists.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "deepseek-specialist-iteration-budgets",
+  "kind": "runtime",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "inspect the three specialist iteration caps and exercise bounded dream deduction/induction with the deployment model while watching for tool-loop cap warnings."
+    ],
+    "fork_expected": "configured specialists expose 20/20/15 and representative DeepSeek dream work completes within those bounds.",
+    "upstream": [
+      "inspect the same specialist caps on the recorded upstream base."
+    ],
+    "upstream_expected": "Base/Deduction/Induction caps are 15/12/10 rather than the fork's 20/20/15."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "src/dreamer/specialists.py"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "src/dreamer/specialists.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "src/dreamer/specialists.py::BaseSpecialist.get_max_iterations"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/dreamer/specialists.py::DeductionSpecialist.get_max_iterations"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/dreamer/specialists.py::InductionSpecialist.get_max_iterations"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base uses lower Base/Deduction/Induction specialist iteration caps that are insufficient for the deployment's observed DeepSeek tool loops."
+  ],
+  "version": 1
+}

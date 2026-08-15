@@ -1,0 +1,61 @@
+{
+  "absorption": [
+    "The base Compose configuration no longer publishes the database port or the local port ownership constraint disappears."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Local deployments where another service owns host port 5432."
+    }
+  ],
+  "contract": [
+    "Honcho PostgreSQL remains private to the Compose network and does not claim host port 5432."
+  ],
+  "criticality": "medium",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "docker-compose.override.yml"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "local-compose-port-isolation",
+  "kind": "build",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "docker compose -f docker-compose.yml.example -f docker-compose.override.yml config --format json | python -c 'import json,sys; p=json.load(sys.stdin)[\"services\"][\"database\"].get(\"ports\", []); assert p == [], p; print(\"database-ports-ok\")'`."
+    ],
+    "fork_expected": "the merged Compose model has no database host ports.",
+    "upstream": [
+      "inspect the database service port publication on the recorded upstream base without the fork override."
+    ],
+    "upstream_expected": "the base configuration exposes a host database port."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "docker-compose.override.yml"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "docker-compose.override.yml"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "docker-compose.yml.example::services.database"
+    },
+    {
+      "kind": "symbol",
+      "value": "docker-compose.override.yml::services.database.ports"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base publishes the database port in a way that conflicts with another local service owning localhost:5432."
+  ],
+  "version": 1
+}

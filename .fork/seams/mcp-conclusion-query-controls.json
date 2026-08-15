@@ -1,0 +1,61 @@
+{
+  "absorption": [
+    "Upstream MCP tools expose equivalent filtering, pagination/order, distance, and level result contracts."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "MCP clients inspecting Honcho conclusions directly."
+    }
+  ],
+  "contract": [
+    "MCP clients can list/query explicit, deductive, or inductive conclusions with level filtering, pagination/reverse controls, semantic distance constraints, and returned conclusion levels."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/conclusions.ts"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "mcp-conclusion-query-controls",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "cd mcp && bun run typecheck:node`."
+    ],
+    "fork_expected": "Node typecheck passes and disposable/read-only integration proof returns the requested conclusion levels and controls.",
+    "upstream": [
+      "inspect MCP conclusion list/query arguments and result fields on the recorded upstream base."
+    ],
+    "upstream_expected": "one or more level/pagination/distance/order controls and returned-level metadata are absent."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/conclusions.ts"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "mcp/src/tools/conclusions.ts"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/src/tools/conclusions.ts"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/conclusions.py"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base MCP conclusion tools expose a narrower list/query surface without these local controls/result metadata."
+  ],
+  "version": 1
+}

@@ -1,0 +1,48 @@
+{
+  "format": "fork-repo/event",
+  "kind": "legacy-import",
+  "payload": {
+    "archived_manifest": ".fork/legacy/manifest.json",
+    "archived_manifest_sha256": "d78a5102a7d8652c058f3a1eba39894fbef9d3d9dad9bdbe1b77712b92e7e2da",
+    "ledger_blob_oid": "676e21c695196ebd4ee47bbbc64806308b09b89a",
+    "ledger_sha256": "0cf18b6441df19c9a36ca53c016c0247091a24490d7f029a80d0dbbcc322338a",
+    "legacy_schema": 4,
+    "merge_base": "602347d76c4e5e464e883f5df32b5bad5aa7952b",
+    "seam_id_map": {
+      "bundled-agent-skills": "bundled-agent-skills",
+      "chatgpt-oauth-mcp": "chatgpt-oauth-mcp",
+      "codex-subscription-transport": "codex-subscription-transport",
+      "conclusion-level-compatibility-alias": "conclusion-level-compatibility-alias",
+      "container-source-permissions": "container-source-permissions",
+      "deepseek-specialist-iteration-budgets": "deepseek-specialist-iteration-budgets",
+      "deriver-retry-durability": "deriver-retry-durability",
+      "dream-health-watcher": "dream-health-watcher",
+      "fam-workspace-migration": "fam-workspace-migration",
+      "gpt56-responses-lite": "gpt56-responses-lite",
+      "local-codex-stdio-mcp": "local-codex-stdio-mcp",
+      "local-compose-port-isolation": "local-compose-port-isolation",
+      "mcp-conclusion-query-controls": "mcp-conclusion-query-controls",
+      "mcp-identity-data-hygiene": "mcp-identity-data-hygiene",
+      "mcp-peer-identity-normalization": "mcp-peer-identity-normalization",
+      "openai-reasoning-history-replay": "openai-reasoning-history-replay",
+      "private-memory-importer": "private-memory-importer",
+      "production-model-policy": "production-model-policy",
+      "test-database-url-fidelity": "test-database-url-fidelity",
+      "workspace-collective-recall-and-identity": "workspace-collective-recall-and-identity"
+    },
+    "source_head": "46095ef5a01b0127d3c6e56807af7b28f0f34328",
+    "source_tree": "4535d5d225dbf75076b1f244e7749db8bdfe9a40",
+    "upstream_branch": "main",
+    "upstream_provenance": {
+      "backend": "local",
+      "oid": "444897975c95393b0d48024470ece03c025d3aa4",
+      "ref": "refs/fork-repo/provenance/0000-legacy-import/upstream-tip",
+      "remote": null
+    },
+    "upstream_remote": "upstream",
+    "upstream_tip": "444897975c95393b0d48024470ece03c025d3aa4"
+  },
+  "previous": null,
+  "sequence": 0,
+  "version": 1
+}

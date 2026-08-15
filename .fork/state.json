@@ -1,0 +1,40 @@
+{
+  "fork": {
+    "branch": "main",
+    "remote": "origin"
+  },
+  "format": "fork-repo/state",
+  "history": {
+    "path": ".fork/history/0000-legacy-import.json",
+    "sequence": 0,
+    "sha256": "0e1aee1fd11bb26b659e2c04d231077faf11669cff5ceb0ffd46e0e1c3dea3dc"
+  },
+  "render": {
+    "ledger_version": 1,
+    "policy_version": 1
+  },
+  "support": [
+    {
+      "kind": "path",
+      "path": ".github/workflows/unified-tests.yml",
+      "purpose": "Imported exact legacy fork support"
+    },
+    {
+      "kind": "path",
+      "path": ".github/workflows/unittest.yml",
+      "purpose": "Imported exact legacy fork support"
+    },
+    {
+      "kind": "path",
+      "path": "docker-compose.yml",
+      "purpose": "Imported exact legacy fork support"
+    }
+  ],
+  "upstream": {
+    "base_oid": "602347d76c4e5e464e883f5df32b5bad5aa7952b",
+    "branch": "main",
+    "label": "v3.0.11",
+    "remote": "upstream"
+  },
+  "version": 1
+}

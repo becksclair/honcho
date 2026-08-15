@@ -1,0 +1,83 @@
+{
+  "absorption": [
+    "The local client moves to another transport with the same identity isolation and live tool proof, or upstream provides an equivalent stdio deployment surface."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Standalone Codex clients configured for the local Honcho MCP."
+    }
+  ],
+  "contract": [
+    "Standalone Codex can connect through a local stdio MCP wrapper with its own fixed workspace/peer identity, independent of the public ChatGPT OAuth identity boundary."
+  ],
+  "criticality": "high",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/honcho-mcp-stdio"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/server.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/stdio.ts"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "local-codex-stdio-mcp",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "cd mcp && bun run typecheck:node`."
+    ],
+    "fork_expected": "Node typecheck passes and the private stdio smoke returns server instructions/tool inventory under the intended Codex identity.",
+    "upstream": [
+      "inspect the MCP entrypoints on the recorded upstream base."
+    ],
+    "upstream_expected": "no local stdio wrapper with the fork's separate Codex identity exists."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "mcp/honcho-mcp-stdio"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/server.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/stdio.ts"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "mcp/honcho-mcp-stdio",
+    "mcp/src/server.ts",
+    "mcp/src/stdio.ts"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/src/stdio.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/server.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/honcho-mcp-stdio"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base has no local stdio entrypoint/wrapper carrying the separate Codex identity convention."
+  ],
+  "version": 1
+}

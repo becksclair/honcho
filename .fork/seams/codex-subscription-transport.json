@@ -1,0 +1,213 @@
+{
+  "absorption": [
+    "Upstream provides an equivalent subscription-authenticated Codex transport and the focused plus live subscription tests pass without the fork implementation."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Honcho LLM runtime paths configured with `transport = \"codex\"`."
+    }
+  ],
+  "contract": [
+    "Honcho can use a Codex/ChatGPT subscription as an LLM transport without an OpenAI API key, including auth-file loading/refresh, streaming Responses calls, structured output, tool calls, concurrency/retry behavior, telemetry, and normal model registry/config plumbing."
+  ],
+  "criticality": "critical",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "ROADMAP.md"
+    },
+    {
+      "kind": "path",
+      "value": "src/config.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/backends/codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/codex_auth.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/credentials.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/registry.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/types.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/codex_test_helpers.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/live_llm/test_live_codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_backends/test_codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_auth.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_registry.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_tool_loop.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_credentials.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_model_config.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_telemetry_llm_call.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "codex-subscription-transport",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      ".venv/bin/pytest -q tests/llm/test_backends/test_codex.py tests/llm/test_codex_auth.py tests/llm/test_codex_registry.py tests/llm/test_codex_tool_loop.py tests/llm/test_credentials.py tests/llm/test_model_config.py tests/llm/test_telemetry_llm_call.py`."
+    ],
+    "fork_expected": "focused Codex transport/config/auth/tool-loop tests pass; live proof additionally succeeds only when explicitly run with the mounted subscription auth file.",
+    "upstream": [
+      "inspect `src/llm` transport registration, credentials, and backend implementations on the recorded upstream base."
+    ],
+    "upstream_expected": "no Codex subscription backend/auth lifecycle exists."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "ROADMAP.md"
+    },
+    {
+      "kind": "path",
+      "value": "src/config.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/backends/codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/codex_auth.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/credentials.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/registry.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/llm/types.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/codex_test_helpers.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/live_llm/test_live_codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_backends/test_codex.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_auth.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_registry.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_codex_tool_loop.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_credentials.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_model_config.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/llm/test_telemetry_llm_call.py"
+    }
+  ],
+  "replay": [
+    "Keep credential selection provider-neutral and never place subscription tokens in config, logs, tests, or commits."
+  ],
+  "touchpoints": [
+    "ROADMAP.md",
+    "src/config.py",
+    "src/llm/__init__.py",
+    "src/llm/backends/codex.py",
+    "src/llm/codex_auth.py",
+    "src/llm/credentials.py",
+    "src/llm/registry.py",
+    "src/llm/types.py",
+    "tests/codex_test_helpers.py",
+    "tests/live_llm/test_live_codex.py",
+    "tests/llm/test_backends/test_codex.py",
+    "tests/llm/test_codex_auth.py",
+    "tests/llm/test_codex_registry.py",
+    "tests/llm/test_codex_tool_loop.py",
+    "tests/llm/test_credentials.py",
+    "tests/llm/test_model_config.py",
+    "tests/llm/test_telemetry_llm_call.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "src/llm/registry.py::get_backend"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/llm/backends/codex.py::CodexResponsesBackend"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/llm/codex_auth.py::CodexAuthManager"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/config.py::ModelTransport"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base has no subscription-authenticated Codex transport, Codex auth-file lifecycle, registry entry, or corresponding focused/live proof."
+  ],
+  "version": 1
+}

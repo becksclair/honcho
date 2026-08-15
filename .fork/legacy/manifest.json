@@ -1,0 +1,7 @@
+{
+  "format": "fork-repo/legacy-manifest",
+  "ledger_sha256": "0cf18b6441df19c9a36ca53c016c0247091a24490d7f029a80d0dbbcc322338a",
+  "schema": 4,
+  "upgrades": {},
+  "version": 1
+}

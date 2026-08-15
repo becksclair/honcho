@@ -1,0 +1,307 @@
+{
+  "absorption": [
+    "Upstream provides equivalent configurable canonical identity enforcement and globally ranked multi-observer recall with the same write isolation, provenance, and backward-compatibility behavior."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Family/shared-memory workspaces and Dialectic callers relying on collective recall."
+    }
+  ],
+  "contract": [
+    "A workspace can declare canonical peer aliases and strict identity policy, and Dialectic retrieval can produce one globally ranked evidence pool across configured observers while preserving observer provenance, session-safe adjacency, observer-local writes, and legacy behavior when identity policy is absent."
+  ],
+  "criticality": "critical",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/document.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/message.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/peer.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/session.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/chat.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/core.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/prompts.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/retrieval.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/conclusions.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/keys.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/peers.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/sessions.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/workspaces.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/configuration.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/security.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/utils/agent_tools.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/utils/config_helpers.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/dialectic/test_collective_recall.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/test_identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/test_schema_validations.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/utils/test_agent_tools.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/utils/test_config_helpers.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "workspace-collective-recall-and-identity",
+  "kind": "runtime",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      ".venv/bin/pytest -q tests/test_identity.py tests/dialectic/test_collective_recall.py tests/test_schema_validations.py tests/utils/test_agent_tools.py tests/utils/test_config_helpers.py`."
+    ],
+    "fork_expected": "focused identity/collective-recall tests pass, legacy workspaces retain preserve-case/dynamic behavior, and evidence preserves observer provenance.",
+    "upstream": [
+      "inspect workspace identity configuration and Dialectic observer/retrieval scope on the recorded upstream base."
+    ],
+    "upstream_expected": "there is no equivalent strict canonical identity policy plus globally ranked cross-observer recall path."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/peer-identity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/document.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/message.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/peer.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/crud/session.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/chat.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/core.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/prompts.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/retrieval.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/conclusions.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/keys.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/peers.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/sessions.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/routers/workspaces.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/__init__.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/configuration.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/security.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/utils/agent_tools.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/utils/config_helpers.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/dialectic/test_collective_recall.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/test_identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/test_schema_validations.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/utils/test_agent_tools.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/utils/test_config_helpers.py"
+    }
+  ],
+  "replay": [
+    "Keep writes observer-local; widen only read-time retrieval. The deferred CRUD import in `src/dialectic/retrieval.py` is part of avoiding the import cycle created by this seam."
+  ],
+  "touchpoints": [
+    "mcp/src/peer-identity.test.ts",
+    "mcp/src/peer-identity.ts",
+    "src/crud/__init__.py",
+    "src/crud/document.py",
+    "src/crud/message.py",
+    "src/crud/peer.py",
+    "src/crud/session.py",
+    "src/dialectic/chat.py",
+    "src/dialectic/core.py",
+    "src/dialectic/prompts.py",
+    "src/dialectic/retrieval.py",
+    "src/identity.py",
+    "src/routers/conclusions.py",
+    "src/routers/keys.py",
+    "src/routers/peers.py",
+    "src/routers/sessions.py",
+    "src/routers/workspaces.py",
+    "src/schemas/__init__.py",
+    "src/schemas/configuration.py",
+    "src/security.py",
+    "src/utils/agent_tools.py",
+    "src/utils/config_helpers.py",
+    "tests/dialectic/test_collective_recall.py",
+    "tests/test_identity.py",
+    "tests/test_schema_validations.py",
+    "tests/utils/test_agent_tools.py",
+    "tests/utils/test_config_helpers.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "src/schemas/configuration.py::WorkspaceConfiguration"
+    },
+    {
+      "kind": "path",
+      "value": "src/identity.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/retrieval.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/dialectic/core.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/security.py"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base isolates recall to one observer and lacks the fork's workspace identity schema/enforcement plus cross-observer retrieval/ranking contract."
+  ],
+  "version": 1
+}

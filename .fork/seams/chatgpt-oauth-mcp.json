@@ -1,0 +1,195 @@
+{
+  "absorption": [
+    "Upstream ships an equivalent deployable HTTP/OAuth MCP whose security, identity, transport, persistence, and proxy contracts pass the fork's focused/integration proof."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "The public ChatGPT-facing Honcho MCP deployment."
+    }
+  ],
+  "contract": [
+    "The Node MCP deployment exposes persistent proxy-aware Streamable HTTP with owner-password OAuth, DCR bounded to 500 retained client registrations, PKCE, exact redirect validation, refresh/revocation, hashed token persistence, server-side Honcho authorization, and rejection of unsupported standalone SSE streams."
+  ],
+  "criticality": "critical",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "mcp/.gitignore"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/Dockerfile.saga"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/README.md"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/bun.lock"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/package.json"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/http.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/http.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-provider.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-store.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/server.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/tsconfig.json"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/tsconfig.node.json"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "chatgpt-oauth-mcp",
+  "kind": "integration",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "cd mcp && bun run typecheck:node && bun test`."
+    ],
+    "fork_expected": "Node typecheck/tests pass, standalone SSE is rejected, dynamic registration rejects client 501 without losing the first 500 registrations, and authorized integration proof survives OAuth token refresh/restart behind the configured proxy.",
+    "upstream": [
+      "inspect the Node MCP transport/auth/deployment surface on the recorded upstream base."
+    ],
+    "upstream_expected": "the persistent HTTP/OAuth deployment and its security/transport contract are absent."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "mcp/.gitignore"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/Dockerfile.saga"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/README.md"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/bun.lock"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/package.json"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/http.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/http.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-provider.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-store.test.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/server.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/tsconfig.json"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/tsconfig.node.json"
+    }
+  ],
+  "replay": [
+    "Preserve one-hop proxy trust, public HTTPS metadata, registration hostname allowlisting, exact registered redirect equality, token hashing, and server-side Honcho authorization."
+  ],
+  "touchpoints": [
+    "mcp/.gitignore",
+    "mcp/Dockerfile.saga",
+    "mcp/README.md",
+    "mcp/bun.lock",
+    "mcp/package.json",
+    "mcp/src/http.test.ts",
+    "mcp/src/http.ts",
+    "mcp/src/node-config.test.ts",
+    "mcp/src/node-config.ts",
+    "mcp/src/oauth-provider.ts",
+    "mcp/src/oauth-store.test.ts",
+    "mcp/src/oauth-store.ts",
+    "mcp/src/server.ts",
+    "mcp/tsconfig.json",
+    "mcp/tsconfig.node.json"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "mcp/src/http.ts::createHttpServer"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-provider.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/oauth-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "mcp/src/node-config.ts"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base does not provide this Node HTTP/OAuth deployment, its proxy/public-URL security policy, persisted OAuth lifecycle, or transport tests."
+  ],
+  "version": 1
+}

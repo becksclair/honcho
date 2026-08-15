@@ -1,0 +1,83 @@
+{
+  "absorption": [
+    "All maintained consumers use the stable `level` field or upstream provides the same compatibility alias and route serialization contract."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Clients that still read the historical `conclusion_type` field."
+    }
+  ],
+  "contract": [
+    "The public conclusion API exposes the stable `level` field together with a backward-compatible `conclusion_type` alias, and current fork schemas preserve the compatibility field expected by existing consumers."
+  ],
+  "criticality": "medium",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "src/routers/conclusions.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/api.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/routes/test_conclusions.py"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "conclusion-level-compatibility-alias",
+  "kind": "runtime",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      ".venv/bin/pytest -q tests/routes/test_conclusions.py`."
+    ],
+    "fork_expected": "conclusion route tests return matching `level` and `conclusion_type` values.",
+    "upstream": [
+      "inspect conclusion response serialization and schema fields on the recorded upstream base."
+    ],
+    "upstream_expected": "responses do not include `conclusion_type` alongside `level`."
+  },
+  "query_scopes": [
+    {
+      "kind": "path",
+      "value": "src/routers/conclusions.py"
+    },
+    {
+      "kind": "path",
+      "value": "src/schemas/api.py"
+    },
+    {
+      "kind": "path",
+      "value": "tests/routes/test_conclusions.py"
+    }
+  ],
+  "replay": [
+    "Re-check whether `Workspace.conclusion_type` remains a real consumer contract on the next upgrade; the route proof primarily exercises conclusion responses."
+  ],
+  "touchpoints": [
+    "src/routers/conclusions.py",
+    "src/schemas/api.py",
+    "tests/routes/test_conclusions.py"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "src/routers/conclusions.py::_serialize_conclusion"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/schemas/api.py::Conclusion"
+    },
+    {
+      "kind": "symbol",
+      "value": "src/schemas/api.py::Workspace"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base serializes conclusion level without the fork's `conclusion_type` compatibility alias."
+  ],
+  "version": 1
+}

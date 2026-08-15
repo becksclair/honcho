@@ -1,0 +1,61 @@
+{
+  "absorption": [
+    "Upstream's image build guarantees equivalent runtime-readable/executable source permissions without the fork commands."
+  ],
+  "consumers": [
+    {
+      "kind": "legacy",
+      "name": "Self-hosted API/deriver container images."
+    }
+  ],
+  "contract": [
+    "The production container normalizes ownership/permissions of copied source so the runtime user can reliably read and execute application files regardless of host checkout metadata."
+  ],
+  "criticality": "medium",
+  "fork_anchors": [
+    {
+      "kind": "path",
+      "value": "Dockerfile"
+    }
+  ],
+  "format": "fork-repo/seam",
+  "id": "container-source-permissions",
+  "kind": "build",
+  "lineage": [],
+  "proof": {
+    "fork": [
+      "build the image from a checkout with restrictive-but-valid source metadata and inspect application source ownership/modes as the runtime user."
+    ],
+    "fork_expected": "application source is readable/executable by the configured runtime user after image build.",
+    "upstream": [
+      "inspect post-copy permission handling in the recorded upstream Dockerfile."
+    ],
+    "upstream_expected": "no equivalent source permission normalization is present."
+  },
+  "query_scopes": [
+    {
+      "kind": "symbol",
+      "value": "Dockerfile"
+    }
+  ],
+  "replay": [
+    "Legacy replay guidance"
+  ],
+  "touchpoints": [
+    "Dockerfile"
+  ],
+  "upstream_anchors": [
+    {
+      "kind": "symbol",
+      "value": "Dockerfile"
+    },
+    {
+      "kind": "symbol",
+      "value": "Dockerfile::COPY"
+    }
+  ],
+  "upstream_gap": [
+    "The recorded upstream base copies source without the fork's explicit post-copy permission normalization."
+  ],
+  "version": 1
+}
