@@ -10,6 +10,7 @@ Last upgrade record: `none`
 ## Fork support paths
 
 - `AGENTS.md`
+- `docker-compose.yml`
 - `.github/workflows/unified-tests.yml`
 - `.github/workflows/unittest.yml`
 
