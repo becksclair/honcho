@@ -1,21 +1,31 @@
 # Honcho Local Operations
 
-This checkout is the live self-hosted Honcho service used by OpenClaw. Treat
-`config.toml`, Docker containers, and the Postgres queue as operational state,
-not just source code.
+This checkout is the source for the live Honcho service used by OpenClaw; the
+production deployment is owned by the Saga homelab (`/opt/homelab/compose.yaml`,
+profile `honcho-app`, images built from this checkout). Treat `config.toml`, the
+containers, and the Postgres queue as operational state, not just source code.
 
 ## Orientation
 
-Important local files and services:
+Production services (`docker compose --profile honcho-app` from `/opt/homelab`):
+
+- `saga-homelab-honcho-api-1` - API container.
+- `saga-homelab-honcho-deriver-1` - background deriver/dream/reconciler worker.
+- `saga-homelab-honcho-mcp-1` - Honcho MCP server.
+- `saga-homelab-postgres-1` - Postgres queue, documents, embeddings (user/db `honcho`).
+- `saga-homelab-redis-1` - cache/coordination.
+
+The retired `honcho-*` dev compose stack (honcho-database-1 / honcho-redis-1 /
+honcho-api-1 / honcho-deriver-1) has been removed; do not recreate it. Local
+work only uses `docker-compose.yml` (project `honcho-dev`): `docker compose up -d`
+starts only `database` + `redis`, and `--profile app` is required for the
+api/deriver. Never run it as a production substitute.
+
+Important local files:
 
 - `config.toml` - live Honcho config for LLMs, deriver, dreams, embeddings, DB,
-  and queue behavior.
-- `docker-compose.yml` - local dev stack (project `honcho-dev`; api/deriver are gated behind `--profile app`; production Honcho is the Saga deployment via `/opt/homelab/compose.yaml`, see below).
-- `honcho-api-1` - API container.
-- `honcho-deriver-1` - background deriver/dream/reconciler worker.
-- `honcho-database-1` - Postgres queue, documents, embeddings.
-- `honcho-redis-1` - cache/coordination.
-- `scripts/watch_dream_health.py` - local health watcher for dream/replay issues.
+  and queue behavior; bind-mounted into the production containers.
+- `scripts/watch_dream_health.py` - health watcher for dream/replay issues.
 
 Back up `config.toml` before changing it:
 
@@ -34,8 +44,8 @@ with open("config.toml", "rb") as f:
     tomllib.load(f)
 print("toml-ok")
 PY
-docker restart honcho-api-1 honcho-deriver-1
-docker exec -i honcho-api-1 python - <<'PY'
+docker restart saga-homelab-honcho-api-1 saga-homelab-honcho-deriver-1
+docker exec -i saga-homelab-honcho-api-1 python - <<'PY'
 from src.config import settings
 print("workers", settings.DERIVER.WORKERS)
 print("stale", settings.DERIVER.STALE_SESSION_TIMEOUT_MINUTES)
@@ -156,7 +166,7 @@ service_tier = "priority"
 Prefer leaving `deriver` and `summary` on the normal tier unless live evidence
 says their latency is directly blocking the rebuild. When the rebuild is done
 and the queue is drained, remove the temporary dream priority-tier blocks,
-restart `honcho-api-1` and `honcho-deriver-1`, and verify the running config has
+restart `saga-homelab-honcho-api-1` and `saga-homelab-honcho-deriver-1`, and verify the running config has
 `dream.deduction`, `dream.induction`, `deriver`, and `summary` provider params
 back to `{}`.
 
@@ -165,7 +175,7 @@ back to `{}`.
 Queue status:
 
 ```bash
-docker exec honcho-database-1 psql -U honcho -d honcho -Atc "
+docker exec saga-homelab-postgres-1 psql -U honcho -d honcho -Atc "
 select task_type || ':pending=' || count(*) from queue where processed=false group by task_type order by task_type;
 select task_type || ':processed=' || count(*) from queue where processed=true group by task_type order by task_type;
 select task_type || ':errors=' || count(*) from queue where coalesce(error,'') <> '' group by task_type order by task_type;
