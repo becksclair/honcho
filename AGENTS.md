@@ -54,27 +54,28 @@ openclaw honcho status
 
 ## Current Model Lessons
 
-Current live model backbone:
+Current live model backbone (Nemotron-primary):
 
-- In the tracked all-free production profile, short summaries use NVIDIA NIM
-  `nvidia/nemotron-3.5-lightning-30b-a3b` with native
-  `chat_template_kwargs.enable_thinking = true` and `reasoning_budget = 128`.
-  Long summaries, deriver, dream deduction/induction, and every Dialectic level
-  remain on `openai/deepseek-v4-flash-free` through
-  `https://opencode.ai/zen/v1`. The short-summary route and every DeepSeek lane
-  independently fall back to NVIDIA NIM `deepseek-ai/deepseek-v4-flash-0731`
-  at `https://integrate.api.nvidia.com/v1`, with `NVIDIA_API_KEY` supplied only
-  by runtime secret environment. DeepSeek NIM fallbacks normalize reasoning to
-  `high`; the deriver fallback also retains
-  `structured_output_mode = "json_object"`.
+- Every generative lane uses NVIDIA NIM through
+  `https://integrate.api.nvidia.com/v1`, with `NVIDIA_API_KEY` supplied only by
+  runtime secret environment (`/etc/saga-homelab/honcho-workers-ai.env` on
+  Saga): short summaries use `nvidia/nemotron-3.5-lightning-30b-a3b` with
+  native `chat_template_kwargs.enable_thinking = true` and
+  `reasoning_budget = 128`; long summaries, deriver, dream
+  deduction/induction, and every Dialectic level use
+  `nvidia/nemotron-3-ultra-550b-a55b` with `thinking_effort = "high"` and no
+  fallbacks. This replaced the former `openai/deepseek-v4-flash-free` / OpenCode
+  Zen primary, which shared the Hermes free-tier quota and repeatedly hit
+  429 `FreeUsageLimitError`.
 - Deriver keeps `structured_output_mode = "json_object"`; Dialectic uses
   `TOOL_CHOICE = "auto"` at every level because the provider rejects forced
   `any`/`required` tool choice.
 - Local embeddings remain `bge-m3:latest` through the Ollama-compatible OpenAI
-  API and are not part of the DeepSeek profile.
-- `config-deepseek-free-primary.toml` is the tracked all-free production profile.
-  `config-codex-primary.toml` and `config-deepseek-primary.toml` are retained as
-  explicit fallback/reference profiles, not the current active policy.
+  API and are not part of the Nemotron profile.
+- `config-deepseek-free-primary.toml` is the retired previous all-free profile,
+  kept as a historical snapshot. `config-codex-primary.toml` and
+  `config-deepseek-primary.toml` are retained as explicit fallback/reference
+  profiles, not the current active policy.
 - The live Saga deployment is built from `/srv/services/honcho` by
   `/opt/homelab/compose.yaml`; the API, deriver, and MCP images must be rebuilt
   after source changes.
