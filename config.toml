@@ -55,7 +55,7 @@ CODEX_USER_AGENT = "codex_exec/0.144.1"
 # ---------------------------------------------------------------------------
 [deriver]
 ENABLED = true
-WORKERS = 4
+WORKERS = 1
 POLLING_SLEEP_INTERVAL_SECONDS = 1.0
 STALE_SESSION_TIMEOUT_MINUTES = 5
 DEDUPLICATE = true
