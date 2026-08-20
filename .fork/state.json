@@ -28,6 +28,11 @@
       "kind": "path",
       "path": "docker-compose.yml",
       "purpose": "Imported exact legacy fork support"
+    },
+    {
+      "kind": "path",
+      "path": ".opencode/plans/1787237047441-clever-canyon.md",
+      "purpose": "Archived implementation plan for the host-side MCP credential tooling."
     }
   ],
   "upstream": {

@@ -395,7 +395,7 @@ AUTH_JWT_SECRET=<generated_secret>
 ```
 
 Once auth is enabled, use `scripts/generate_jwt.py` to mint tokens for local
-development and scripting:
+development and scripting (runs outside docker, no OAuth needed for MCP):
 
 ```bash
 # Admin token (full access, no expiry)
@@ -407,8 +407,12 @@ uv run python scripts/generate_jwt.py --admin --expires 24h
 # Workspace-scoped token
 uv run python scripts/generate_jwt.py --workspace my-workspace --expires 30d
 
+# Long-lived MCP key (defaults to workspace openclaw, 1y) -- use outside docker
+uv run python scripts/mint_api_key.py --format env          # prints HONCHO_API_KEY=...
+uv run python scripts/generate_jwt.py --mcp --peer codex --format env
+
 # Capture a token for use in curl/scripts
-TOKEN=$(uv run python scripts/generate_jwt.py --admin --print-only)
+TOKEN=$(uv run python scripts/generate_jwt.py --admin --format raw)
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/v3/workspaces
 ```
 

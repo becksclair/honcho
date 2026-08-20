@@ -15,6 +15,7 @@
 
 - `.github/workflows/unified-tests.yml`: Imported exact legacy fork support
 - `.github/workflows/unittest.yml`: Imported exact legacy fork support
+- `.opencode/plans/1787237047441-clever-canyon.md`: Archived implementation plan for the host-side MCP credential tooling.
 - `docker-compose.yml`: Imported exact legacy fork support
 
 ## Active seams
@@ -679,9 +680,11 @@ Criticality: `high`
 
 Contract:
 - Standalone Codex can connect through a local stdio MCP wrapper with its own fixed workspace/peer identity, independent of the public ChatGPT OAuth identity boundary.
+- Host-side JWT helpers mint scoped MCP credentials with raw or environment output; README documents the outside-container stdio setup and CLI usage.
 
 Upstream gap:
 - The recorded upstream base has no local stdio entrypoint/wrapper carrying the separate Codex identity convention.
+- The recorded upstream lacks the fork MCP JWT helper presets, output modes and mint_api_key wrapper.
 
 Absorbed when:
 - The local client moves to another transport with the same identity isolation and live tool proof, or upstream provides an equivalent stdio deployment surface.
@@ -690,6 +693,9 @@ Fork touchpoints:
 - `mcp/honcho-mcp-stdio`
 - `mcp/src/server.ts`
 - `mcp/src/stdio.ts`
+- `README.md`
+- `scripts/generate_jwt.py`
+- `scripts/mint_api_key.py`
 
 Query scopes:
 - `path:mcp/honcho-mcp-stdio`
@@ -708,6 +714,7 @@ Fork anchors:
 
 Proof:
 - Fork: `cd mcp && bun run typecheck:node`.`
+- Fork: `Run tests/test_generate_jwt_script.py and inspect mint_api_key delegation to generate_jwt.`
 - Upstream: `inspect the MCP entrypoints on the recorded upstream base.`
 - Fork expected: Node typecheck passes and the private stdio smoke returns server instructions/tool inventory under the intended Codex identity.
 - Upstream expected: no local stdio wrapper with the fork's separate Codex identity exists.
