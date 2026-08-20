@@ -99,13 +99,38 @@ Built on:
 - **[@modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk)** — `McpServer` for tool registration
 - **[@honcho-ai/sdk](https://www.npmjs.com/package/@honcho-ai/sdk)** v2 — Honcho TypeScript SDK
 
-## Self-Hosted Honcho
+## Self-Hosted Honcho (stdio, no OAuth)
 
-If you run Honcho yourself (for privacy, latency, or offline use), deploy the
-MCP Worker alongside your instance and set `HONCHO_API_URL` in its
-environment.
+For Claude Code / OpenCode / local MCP clients you don't need OAuth. Mint a
+long-lived `HONCHO_API_KEY` outside the honcho containers and run
+`honcho-mcp-stdio`:
 
-**Local dev (`bun run dev`):** create `mcp/.dev.vars`:
+```bash
+# 1. Mint a key (runs outside docker, signs with AUTH_JWT_SECRET from env/.env/config.toml)
+uv run python scripts/mint_api_key.py --workspace openclaw --peer codex --expires 1y --format env
+# or: uv run python scripts/generate_jwt.py --mcp --workspace openclaw --peer codex --expires 1y --format env
+
+# 2. Configure MCP (Claude Code example)
+# The script prints: HONCHO_API_KEY=<jwt>
+export HONCHO_API_KEY=<paste-jwt>
+export HONCHO_API_URL=http://127.0.0.1:8000
+export HONCHO_WORKSPACE_ID=openclaw
+honcho-mcp-stdio   # or point your client at mcp/honcho-mcp-stdio
+
+# Other scopes:
+uv run python scripts/mint_api_key.py --workspace my-app --expires 90d --format json  # inspect
+uv run python scripts/generate_jwt.py --admin --expires 24h --format env               # admin key
+```
+
+Notes:
+- `AUTH_JWT_SECRET` must match the value mounted into the `honcho-api`/`honcho-deriver`
+  containers (bind-mounted `config.toml` on Saga via `/opt/homelab/compose.yaml`).
+  Generate with `uv run python scripts/generate_jwt_secret.py --print-only` if unset.
+- Stateless JWTs cannot be revoked without rotating `AUTH_JWT_SECRET`; prefer the
+  shortest workable `--expires` (the script warns for `>90d` or no expiry).
+- For the hosted Worker (HTTP/OAuth) path, `HONCHO_API_URL` routing is below.
+
+## Self-Hosted Honcho (Worker / HTTP)
 
 ```
 HONCHO_API_URL=http://127.0.0.1:28000
