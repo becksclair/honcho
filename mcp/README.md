@@ -127,10 +127,24 @@ Notes:
   containers (bind-mounted `config.toml` on Saga via `/opt/homelab/compose.yaml`).
   Generate with `uv run python scripts/generate_jwt_secret.py --print-only` if unset.
 - Stateless JWTs cannot be revoked without rotating `AUTH_JWT_SECRET`; prefer the
-  shortest workable `--expires` (the script warns for `>90d` or no expiry).
+  shortest workable `--expires`.
 - For the hosted Worker (HTTP/OAuth) path, `HONCHO_API_URL` routing is below.
 
 ## Self-Hosted Honcho (Worker / HTTP)
+
+**Worker (`mcp/src/index.ts`)** already accepts `Authorization: Bearer <honcho-jwt>` per-request via `X-Honcho-*` headers — no OAuth needed.
+
+**Node HTTP (`mcp/src/http.ts` `/mcp`)** now does too: `Authorization: Bearer` is tried as OAuth first, then as a Honcho API key (long-lived JWT from `scripts/mint_api_key.py` / `scripts/generate_jwt.py --mcp`) to bypass the OAuth challenge entirely. The bearer becomes the per-session `HONCHO_API_KEY` (workspace from JWT `w` or `X-Honcho-Workspace-ID` header). Peer/session scope without workspace is rejected (mirrors `src/security.py`).
+
+Set `HONCHO_JWT_SECRET` (or `AUTH_JWT_SECRET`) on the Node MCP server to the same value as `honcho-api`’s `AUTH_JWT_SECRET` for strict HMAC verification:
+
+```bash
+# honcho-mcp env (Saga: /home/bex/.config/honcho-mcp/env)
+HONCHO_JWT_SECRET=<same-as-AUTH_JWT_SECRET>
+# or AUTH_JWT_SECRET=<same-as-AUTH_JWT_SECRET>
+```
+
+Without it, `/mcp` still accepts the bearer but only checks JWT format, `exp` (ISO string) expiry, and `w`/`p`/`s` scope — the Honcho API remains the final arbiter (forged keys get a 200 MCP session but Honcho calls 401). For production, set the secret.
 
 ```
 HONCHO_API_URL=http://127.0.0.1:28000
