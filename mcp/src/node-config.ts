@@ -11,6 +11,7 @@ export interface NodeConfig {
   trustProxy: boolean;
   allowedRedirectHosts: string[];
   honcho: HonchoConfig;
+  honchoJwtSecret?: string;
 }
 
 function value(env: NodeJS.ProcessEnv, name: string): string | undefined {
@@ -48,7 +49,7 @@ export function loadNodeConfig(env: NodeJS.ProcessEnv = process.env): NodeConfig
     host,
     port,
     publicBaseUrl,
-    stateDir: resolve(value(env, "HONCHO_MCP_STATE_DIR") ?? join(homedir(), ".local", "share", "honcho-mcp")),
+    stateDir: resolve(value(env, "HONCHO_STATE_DIR") ?? join(homedir(), ".local", "share", "honcho-mcp")),
     ownerToken,
     trustProxy: ["1", "true", "yes", "on"].includes((value(env, "HONCHO_MCP_TRUST_PROXY") ?? "").toLowerCase()),
     allowedRedirectHosts: (value(env, "HONCHO_MCP_OAUTH_ALLOWED_REDIRECT_HOSTS") ?? "chatgpt.com,localhost,127.0.0.1")
@@ -60,5 +61,6 @@ export function loadNodeConfig(env: NodeJS.ProcessEnv = process.env): NodeConfig
       userName: value(env, "HONCHO_USER_NAME") ?? "bex",
       assistantName: value(env, "HONCHO_ASSISTANT_NAME") ?? "sarah",
     },
+    honchoJwtSecret: value(env, "HONCHO_JWT_SECRET") ?? value(env, "AUTH_JWT_SECRET"),
   };
 }
