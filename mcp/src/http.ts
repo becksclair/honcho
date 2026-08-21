@@ -158,10 +158,6 @@ export function createHttpServer(config: NodeConfig = loadNodeConfig()) {
     resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl),
   });
   const transports = new Map<string, Transport>();
-  // Keep the Honcho API key that was used to create each MCP session so
-  // subsequent `mcp-session-id` requests for the same session reuse the
-  // same per-request Honcho identity instead of the static server identity.
-  const sessionHonchoConfig = new Map<string, HonchoConfig>();
 
   app.get("/healthz", (_req, res) => res.json({ ok: true, name: "honcho-mcp" }));
   app.get("/mcp", (_req, res) => {
@@ -229,13 +225,11 @@ export function createHttpServer(config: NodeConfig = loadNodeConfig()) {
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (id) => {
             if (transport) transports.set(id, transport);
-            if (isBypass) sessionHonchoConfig.set(id, honchoConfigForRequest);
           },
         });
         transport.onclose = () => {
           if (transport?.sessionId) {
             transports.delete(transport.sessionId);
-            sessionHonchoConfig.delete(transport.sessionId);
           }
         };
         // For bypass sessions, `honchoConfigForRequest` already carries the
