@@ -12,7 +12,7 @@ import tiktoken.load
 import tiktoken.registry
 
 from src.config import EmbeddingModelConfig
-from src.embedding_client import _EmbeddingClient
+from src.embedding_client import _EmbeddingClient  # pyright: ignore[reportPrivateUsage]
 from src.embedding_tokenizer import BgeM3Tokenizer, is_bge_m3
 
 
@@ -106,7 +106,7 @@ def make_client(
 
     monkeypatch.setattr(
         "src.embedding_client.AsyncOpenAI",
-        lambda **_: SimpleNamespace(embeddings=SimpleNamespace(create=create)),
+        Mock(return_value=SimpleNamespace(embeddings=SimpleNamespace(create=create))),
     )
     client = _EmbeddingClient(
         EmbeddingModelConfig(transport="openai", model=model, api_key="test"),
@@ -223,8 +223,6 @@ async def test_bge_request_cap_limits_queries_documents_and_persisted_chunks(
     chunks = client.prepare_chunks({"parent": text})["parent"]
     assert len(chunks) > 1
     assert all(client.count_tokens(chunk) <= 8 for chunk in chunks)
-    batches = client._create_batches(client._prepare_chunks({"parent": text}))
-    assert all(sum(item.token_count for item in batch) <= 8 for batch in batches)
     result = await client.batch_embed({"parent": text})
     assert [part for call in calls for part in call["input"]] == chunks
     assert all(

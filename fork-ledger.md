@@ -1084,6 +1084,7 @@ Criticality: `high`
 
 Contract:
 - The self-hosted deployment carries explicit model/transport profiles and live routing policy for effort, tier, concurrency, retries, embeddings, and fallbacks, while keeping operator backup files out of Git. Summary generation supports an optional short-summary model route that falls back to the ordinary summary model when unset, so short and long summaries can use different substrates without changing existing deployments. The DeepSeek-free production profile routes short summaries to NVIDIA NIM Nemotron 3.5 Lightning with native 128-token reasoning and DeepSeek NIM fallback, while long summaries and every other generative lane keep OpenCode Zen DeepSeek V4 Flash as primary with independent NVIDIA NIM DeepSeek V4 Flash 0731 fallback.
+- Automatic Python CI validates the checked-in model profiles offline and excludes tests marked live_llm; live provider tests require explicit local opt-in.
 
 Upstream gap:
 - The recorded upstream base does not contain these local production profiles, the deployment-specific model routing policy, or an independent short-summary model route.

@@ -32,10 +32,10 @@ class BgeM3Tokenizer:
             raise ValueError(
                 "BGE-M3 tokenizer SHA-256 does not match the pinned artifact"
             )
-        self.tokenizer = Tokenizer.from_str(data.decode("utf-8"))
+        self.tokenizer: Tokenizer = Tokenizer.from_str(data.decode("utf-8"))
         self.tokenizer.no_truncation()
         self.tokenizer.no_padding()
-        self.special_tokens = self.tokenizer.num_special_tokens_to_add(False)
+        self.special_tokens: int = self.tokenizer.num_special_tokens_to_add(False)
 
     def count(self, text: str) -> int:
         """Count the actual provider input, including model special tokens."""

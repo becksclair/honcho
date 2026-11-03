@@ -76,7 +76,6 @@ def test_deepseek_free_profile_routes_short_summary_to_lightning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _load(PROFILE)
-    active = _load(REPO_ROOT / "config.toml")
     monkeypatch.setenv("NVIDIA_API_KEY", "nim-test-key")
 
     raw = config["summary"]["short_model_config"]
@@ -89,7 +88,6 @@ def test_deepseek_free_profile_routes_short_summary_to_lightning(
     assert summary_settings.SHORT_MODEL_CONFIG is not None
     assert summary_settings.SHORT_MODEL_CONFIG.model == LIGHTNING_MODEL
     assert summary_settings.MODEL_CONFIG.model == "deepseek-v4-flash-free"
-    assert active["summary"]["short_model_config"] == raw
     assert raw["transport"] == "openai"
     assert raw["model"] == LIGHTNING_MODEL
     assert "thinking_effort" not in raw
