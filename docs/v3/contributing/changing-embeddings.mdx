@@ -60,3 +60,32 @@ For this case, either set `EMBEDDING_VECTOR_DIMENSIONS=1536` explicitly (so `aut
 ## Backend swap (turbopuffer ↔ lancedb ↔ pgvector) is a different operation
 
 Switching the *storage backend* at constant dim/model — for example moving from pgvector to Turbopuffer — is supported via `src/reconciler/sync_vectors.py` and `VECTOR_STORE_MIGRATED`. That flow is unchanged by the embedding-pipeline work and is documented separately. It is **not** the destroy + rebuild path described above.
+
+
+## BGE-M3 token limits and offline tokenizer
+
+For `bge-m3`, `bge-m3:latest`, `BAAI/bge-m3`, or `@cf/baai/bge-m3`, set
+`embedding.TOKENIZER_PATH` to a locally provisioned official `tokenizer.json`.
+Use revision `5617a9f61b028005a4858fdac845db406aefb181` from
+[BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3/blob/5617a9f61b028005a4858fdac845db406aefb181/tokenizer.json),
+with SHA-256 `21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08`.
+Honcho checks the digest and loads this file without downloads, padding, or truncation.
+Mount the file read-only at the configured path in both API and deriver containers.
+Rebuild the application image after updating the source and dependency lockfile.
+
+BGE input limits include model special tokens and are capped at 8192 even if
+`MAX_INPUT_TOKENS` is higher. The effective per-input cap is the lowest of 8192,
+`MAX_INPUT_TOKENS`, and `MAX_TOKENS_PER_REQUEST`, so each persisted chunk can fit
+within one request.
+Long messages are split into exact original Unicode spans with 20% token overlap.
+Each span is re-tokenized before token-aware batching. Single queries and
+`simple_batch_embed` documents exceeding the limit raise before provider dispatch.
+The existing lexical deduplication encoding stays independent of embedding token counts.
+
+Run the offline behavior tests with the provisioned artifact:
+
+```bash
+TEST_BGE_M3_TOKENIZER_PATH=/path/to/tokenizer.json \
+HONCHO_CONFIG_TOML_DISABLED=1 \
+uv run --frozen python -m pytest -n 0 tests/llm/test_bge_embedding_tokenizer.py
+```
