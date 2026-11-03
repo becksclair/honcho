@@ -301,7 +301,7 @@ async def _sync_documents(
                 EmbeddingCallPurpose.VECTOR_SYNC.value,
                 parent_category="reconciliation",
             ):
-                new_embeddings = await embedding_client.simple_batch_embed(contents)
+                new_embeddings = await _embed_pending_inputs(contents)
 
             if len(new_embeddings) != len(docs_needing_embed):
                 logger.warning(
@@ -310,7 +310,8 @@ async def _sync_documents(
                     len(docs_needing_embed),
                 )
 
-            for doc, emb in zip(docs_needing_embed, new_embeddings, strict=False):
+            for index, emb in new_embeddings.items():
+                doc = docs_needing_embed[index]
                 freshly_embedded[doc.id] = emb
                 if store_in_postgres:
                     doc.embedding = emb
@@ -388,6 +389,35 @@ async def _sync_documents(
     return synced_count, failed_count
 
 
+async def _embed_pending_inputs(contents: list[str]) -> dict[int, list[float]]:
+    try:
+        vectors = await embedding_client.simple_batch_embed(contents)
+        return dict(zip(range(len(contents)), vectors, strict=False))
+    except ValueError:
+        # Persisted chunks may predate the current tokenizer/limit. Leave their
+        # retry handling to the caller while still embedding fitting siblings.
+        limit = embedding_client.max_embedding_tokens
+        fitting = [
+            (index, content)
+            for index, content in enumerate(contents)
+            if embedding_client.count_tokens(content) <= limit
+        ]
+        if len(fitting) == len(contents):
+            raise
+        logger.warning(
+            "Skipping %s oversized pending embedding inputs",
+            len(contents) - len(fitting),
+        )
+        if not fitting:
+            return {}
+        vectors = await embedding_client.simple_batch_embed(
+            [content for _, content in fitting]
+        )
+        return {
+            index: vector for (index, _), vector in zip(fitting, vectors, strict=False)
+        }
+
+
 async def _sync_message_embeddings(
     db: AsyncSession,
     embeddings: list[models.MessageEmbedding],
@@ -435,7 +465,7 @@ async def _sync_message_embeddings(
                 workspace_name=workspaces.pop() if len(workspaces) == 1 else None,
                 parent_category="reconciliation",
             ):
-                new_embeddings = await embedding_client.simple_batch_embed(contents)
+                new_embeddings = await _embed_pending_inputs(contents)
 
             if len(new_embeddings) != len(embs_needing_embed):
                 logger.warning(
@@ -444,7 +474,8 @@ async def _sync_message_embeddings(
                     len(embs_needing_embed),
                 )
 
-            for emb, new_emb in zip(embs_needing_embed, new_embeddings, strict=False):
+            for index, new_emb in new_embeddings.items():
+                emb = embs_needing_embed[index]
                 freshly_embedded[emb.id] = new_emb
                 if store_in_postgres:
                     emb.embedding = new_emb

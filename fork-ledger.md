@@ -29,6 +29,8 @@ Contract:
 - BGE-M3 embedding inputs are counted with the pinned official offline tokenizer including special tokens, capped at the lowest of 8192, MAX_INPUT_TOKENS and MAX_TOKENS_PER_REQUEST, without downloads or truncation.
 - Long embedding inputs become exact original Unicode spans with 20 percent token overlap, full source coverage, per-span revalidation, stable sibling order and actual token-aware batching; overlength single queries and unchunked documents fail before provider dispatch.
 - The lexical deduplication encoding and non-BGE embedding tokenizer behavior remain unchanged.
+- Conclusion creation validates each sanitized input with the configured embedding tokenizer and effective per-input limit, including BGE special tokens. Local validation needs no provider credential or dispatch.
+- When a pending document or message embedding exceeds the per-input limit during reconciliation, fitting siblings retain their correct vectors and can sync without spending a retry on the oversized row.
 
 Upstream gap:
 - The recorded upstream embedding client falls back to cl100k_base for BGE-M3, accepts overlength model inputs, and chunks decoded token slices instead of retaining original source spans.
@@ -43,12 +45,18 @@ Fork touchpoints:
 - `src/config.py`
 - `src/embedding_client.py`
 - `src/embedding_tokenizer.py`
+- `src/reconciler/sync_vectors.py`
+- `src/schemas/api.py`
+- `tests/deriver/test_reconciliation_input_limits.py`
 - `tests/llm/test_bge_embedding_tokenizer.py`
+- `tests/llm/test_conclusion_token_limits.py`
 - `uv.lock`
 
 Query scopes:
 - `path:src/embedding_client.py`
 - `path:src/embedding_tokenizer.py`
+- `path:src/schemas/api.py`
+- `path:src/reconciler/sync_vectors.py`
 
 Upstream anchors:
 - `symbol:src/embedding_client.py::_EmbeddingClient._prepare_chunks`
@@ -59,8 +67,9 @@ Fork anchors:
 
 Proof:
 - Fork: `Set TEST_BGE_M3_TOKENIZER_PATH to the pinned local artifact and HONCHO_CONFIG_TOML_DISABLED=1; run uv run --frozen python -m pytest -n 0 tests/llm/test_bge_embedding_tokenizer.py tests/llm/test_embedding_client.py.`
+- Fork: `With the pinned BGE tokenizer and a disposable PostgreSQL test database, run pytest on tests/llm/test_conclusion_token_limits.py and tests/deriver/test_reconciliation_input_limits.py.`
 - Upstream: `Inspect _EmbeddingClient initialization, query validation and _prepare_chunks on the recorded upstream base.`
-- Fork expected: Real tokenizer boundary 8192 accepts and 8193 rejects before dispatch; exact Unicode spans cover all source, fit lower limits, preserve reconciliation order and charge actual batch counts. With input cap 16 and request cap 8, a 10-token query or unchunked document rejects before dispatch and generated persisted chunks and actual batches fit 8 tokens.
+- Fork expected: Real tokenizer boundary 8192 accepts and 8193 rejects before dispatch; exact Unicode spans cover all source, fit lower limits, preserve reconciliation order and charge actual batch counts. With input cap 16 and request cap 8, a 10-token query or unchunked document rejects before dispatch and generated persisted chunks and actual batches fit 8 tokens. Conclusion validation agrees with embedding dispatch. Mixed oversized and fitting batches charge only the oversized rows for a size rejection.
 - Upstream expected: Unknown BGE model names use cl100k_base; no pinned BGE tokenizer, special-token-inclusive model cap or source-span validation exists.
 
 Consumers:

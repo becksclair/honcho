@@ -22,6 +22,7 @@ from pydantic import (
 )
 
 from src.config import ReasoningLevel, settings
+from src.embedding_client import embedding_client
 from src.schemas.configuration import (
     DreamType,
     MessageConfiguration,
@@ -513,14 +514,13 @@ class ConclusionCreate(BaseModel):
     @model_validator(mode="after")
     def validate_token_count(self) -> Self:
         """Validate that content doesn't exceed embedding token limit."""
-        encoding = tiktoken.get_encoding("o200k_base")
-        tokens = encoding.encode(self.content)
-        self._token_count = len(tokens)
+        self._token_count = embedding_client.count_tokens(self.content)
+        max_tokens = embedding_client.max_embedding_tokens
 
-        if self._token_count > settings.EMBEDDING.MAX_INPUT_TOKENS:
+        if self._token_count > max_tokens:
             raise ValueError(
                 "Content exceeds maximum embedding token limit of "
-                + f"{settings.EMBEDDING.MAX_INPUT_TOKENS} "
+                + f"{max_tokens} "
                 + f"(got {self._token_count} tokens)"
             )
         return self

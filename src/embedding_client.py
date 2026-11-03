@@ -181,30 +181,14 @@ class _EmbeddingClient:
         self.model: str = config.model
         self.vector_dimensions: int = vector_dimensions
         self.send_dimensions: bool = send_dimensions
+        self._config: EmbeddingModelConfig = config
 
         if self.transport == "gemini":
-            if not config.api_key:
-                raise ValueError("Gemini API key is required")
-            http_options = (
-                genai_types.HttpOptions(base_url=config.base_url)
-                if config.base_url
-                else None
-            )
-            self.client: genai.Client | AsyncOpenAI = genai.Client(
-                api_key=config.api_key,
-                http_options=http_options,
-            )
             # Gemini has a 2048 token limit
             self.max_embedding_tokens: int = min(max_input_tokens, 2048)
             # Gemini batch size is not documented, using conservative estimate
             self.max_batch_size: int = 100
         else:  # openai
-            if not config.api_key:
-                raise ValueError("OpenAI API key is required")
-            self.client = AsyncOpenAI(
-                api_key=config.api_key,
-                base_url=config.base_url,
-            )
             self.max_embedding_tokens = max_input_tokens
             self.max_batch_size = 2048  # OpenAI batch limit
 
@@ -221,6 +205,23 @@ class _EmbeddingClient:
                 BGE_M3_MAX_TOKENS,
             )
         self.max_embedding_tokens_per_request: int = max_tokens_per_request
+
+    @cached_property
+    def client(self) -> genai.Client | AsyncOpenAI:
+        """Defer provider credentials and transport until an embedding call needs them."""
+        config = self._config
+        if self.transport == "gemini":
+            if not config.api_key:
+                raise ValueError("Gemini API key is required")
+            http_options = (
+                genai_types.HttpOptions(base_url=config.base_url)
+                if config.base_url
+                else None
+            )
+            return genai.Client(api_key=config.api_key, http_options=http_options)
+        if not config.api_key:
+            raise ValueError("OpenAI API key is required")
+        return AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
 
     @cached_property
     def encoding(self) -> tiktoken.Encoding:
@@ -664,6 +665,10 @@ class EmbeddingClient:
     async def embed(self, query: str) -> list[float]:
         """Embed a single query string."""
         return await self._get_client().embed(query)
+
+    def count_tokens(self, text: str) -> int:
+        """Count configured embedding input tokens without provider access."""
+        return self._get_client().count_tokens(text)
 
     async def simple_batch_embed(self, texts: list[str]) -> list[list[float]]:
         """Batch embed a list of text strings (each must fit token limit)."""
