@@ -797,7 +797,7 @@ async def test_fam_webhook_session_disposition_precedes_peer_mapping(
     db_session: AsyncSession, sentinel: str | None
 ) -> None:
     await _seed(db_session)
-    rows = []
+    rows: list[tuple[models.QueueItem | models.QueueDeadLetter, str]] = []
     for model in (models.QueueItem, models.QueueDeadLetter):
         for session_name in ("oc-main", "oc-archive"):
             row = model(
@@ -841,7 +841,7 @@ async def test_fam_session_deletions_follow_selected_session_names(
     from src.deriver.enqueue import create_deletion_record
 
     await _seed(db_session)
-    rows = []
+    rows: list[tuple[models.QueueItem | models.QueueDeadLetter, str]] = []
     for model in (models.QueueItem, models.QueueDeadLetter):
         for session_name in ("oc-main", "oc-archive"):
             row = model(
@@ -875,7 +875,7 @@ async def test_fam_preflight_rejects_converging_pending_dream_keys(
     from src.utils.work_unit import construct_work_unit_key
 
     await _seed(db_session)
-    rows = []
+    rows: list[models.QueueItem] = []
     for workspace, observer, observed in (
         ("openclaw", "sarah", "Bex"),
         ("hermes", "Sarah", "bex"),
