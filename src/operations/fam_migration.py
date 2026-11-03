@@ -17,10 +17,14 @@ from pathlib import Path
 from typing import Any
 
 from nanoid import generate as generate_nanoid
+from pydantic import ValidationError
 from sqlalchemy import insert, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src import models
+from src import models, schemas
+from src.exceptions import ValidationException
+from src.identity import canonicalize_peer_id
+from src.utils.work_unit import parse_work_unit_key
 
 CANONICAL_PEERS = ("bex", "sarah", "sky", "luke", "kate")
 LOCK_TABLES = (
@@ -48,6 +52,11 @@ class SourceWorkspace:
     name: str
     peer_map: dict[str, str]
     leave_sessions: frozenset[str]
+    preserve_peers: frozenset[str] = frozenset()
+
+    @property
+    def peer_targets(self) -> dict[str, str]:
+        return {**self.peer_map, **{peer: peer for peer in self.preserve_peers}}
 
 
 @dataclass(frozen=True)
@@ -58,6 +67,12 @@ class FamManifest:
     workspace_configuration: dict[str, Any]
     sources: tuple[SourceWorkspace, ...]
     peer_card_authority: dict[str, tuple[str, str]]
+
+    @property
+    def target_peers(self) -> frozenset[str]:
+        return frozenset(CANONICAL_PEERS).union(
+            *(source.preserve_peers for source in self.sources)
+        )
 
     @property
     def source_names(self) -> tuple[str, ...]:
@@ -146,11 +161,13 @@ def load_manifest(path: Path) -> FamManifest:
     if not isinstance(source_raw, dict) or not source_raw:
         raise FamMigrationError("manifest has no source_workspaces")
     sources: list[SourceWorkspace] = []
+    preserved_targets: set[str] = set()
     for workspace, spec in source_raw.items():
         if not isinstance(workspace, str) or not isinstance(spec, dict):
             raise FamMigrationError("invalid source workspace entry")
         peer_map = spec.get("peer_map")
         leave_sessions = spec.get("leave_sessions", [])
+        preserve_peers = spec.get("preserve_peers", [])
         if not isinstance(peer_map, dict) or not all(
             isinstance(key, str) and isinstance(value, str)
             for key, value in peer_map.items()
@@ -162,11 +179,30 @@ def load_manifest(path: Path) -> FamManifest:
             isinstance(name, str) for name in leave_sessions
         ):
             raise FamMigrationError(f"invalid leave_sessions for {workspace}")
+        if not isinstance(preserve_peers, list) or not all(
+            isinstance(peer, str) and peer for peer in preserve_peers
+        ):
+            raise FamMigrationError(f"invalid preserve_peers for {workspace}")
+        if set(preserve_peers) & (
+            set(peer_map) | set(CANONICAL_PEERS) | preserved_targets
+        ):
+            raise FamMigrationError(
+                f"preserved peer disposition collides for {workspace}"
+            )
+        aliases = identity.get("aliases", {})
+        if not isinstance(aliases, dict) or any(
+            aliases.get(peer) != peer for peer in preserve_peers
+        ):
+            raise FamMigrationError(
+                "preserved peers require explicit identity self-aliases"
+            )
+        preserved_targets.update(preserve_peers)
         sources.append(
             SourceWorkspace(
                 name=workspace,
                 peer_map=dict(peer_map),
                 leave_sessions=frozenset(leave_sessions),
+                preserve_peers=frozenset(preserve_peers),
             )
         )
 
@@ -190,7 +226,7 @@ def load_manifest(path: Path) -> FamManifest:
             )
         authority[target_peer] = (workspace, peer)
 
-    return FamManifest(
+    manifest = FamManifest(
         target_workspace=target,
         canonical_peers=copy.deepcopy(canonical),
         workspace_metadata=copy.deepcopy(metadata),
@@ -198,6 +234,26 @@ def load_manifest(path: Path) -> FamManifest:
         sources=tuple(sources),
         peer_card_authority=authority,
     )
+    _validate_identity_configuration(manifest)
+    return manifest
+
+
+def _validate_identity_configuration(manifest: FamManifest) -> None:
+    try:
+        workspace = schemas.WorkspaceConfiguration.model_validate(
+            manifest.workspace_configuration
+        )
+        identity = workspace.identity
+        resolved = schemas.ResolvedIdentityConfiguration(
+            **(identity.model_dump(exclude_none=True) if identity else {})
+        )
+        for peer in sorted(manifest.target_peers):
+            if canonicalize_peer_id(peer, resolved) != peer:
+                raise FamMigrationError(
+                    f"identity configuration does not preserve target peer {peer!r}"
+                )
+    except (ValidationError, ValidationException) as exc:
+        raise FamMigrationError(f"invalid fam identity configuration: {exc}") from exc
 
 
 async def _scalar(db: AsyncSession, sql: str, **params: Any) -> Any:
@@ -232,6 +288,7 @@ def _selected_sessions(
 
 
 async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
+    _validate_identity_configuration(manifest)
     if await _workspace_exists(db, manifest.target_workspace):
         marker = await _scalar(
             db,
@@ -240,9 +297,32 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
         )
         if marker == "complete":
             raise FamMigrationError("fam migration is already complete")
-        raise FamMigrationError(
-            "target workspace already exists without completion marker"
+        workspace_rows = await _mappings(
+            db,
+            "SELECT metadata,configuration,internal_metadata FROM workspaces WHERE name=:workspace",
+            workspace=manifest.target_workspace,
         )
+        nonempty_fields = [
+            key for key, value in workspace_rows[0].items() if value != {}
+        ]
+        occupied: dict[str, int] = {}
+        for table in LOCK_TABLES:
+            if table in {"workspaces", "active_queue_sessions"}:
+                continue
+            count = int(
+                await _scalar(
+                    db,
+                    f"SELECT count(*) FROM {table} WHERE workspace_name=:workspace",
+                    workspace=manifest.target_workspace,
+                )
+                or 0
+            )
+            if count:
+                occupied[table] = count
+        if nonempty_fields or occupied:
+            raise FamMigrationError(
+                f"target workspace is not pristine: fields={nonempty_fields}, rows={occupied}"
+            )
 
     missing_sources = [
         source
@@ -323,12 +403,32 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
         "sources": {},
         "sessions": len(session_moves),
         "canonical_peers": len(CANONICAL_PEERS),
+        "preserved_peers": sorted(manifest.target_peers - set(CANONICAL_PEERS)),
     }
 
     for source in manifest.sources:
         selected_names = sessions_by_source[source.name]
         selected_ids = selected_ids_by_source[source.name]
-        mapping = source.peer_map
+        mapping = source.peer_targets
+        source_peers = await _mappings(
+            db,
+            "SELECT name FROM peers WHERE workspace_name=:workspace ORDER BY name",
+            workspace=source.name,
+        )
+        undisposed = sorted(
+            str(row["name"]) for row in source_peers if row["name"] not in mapping
+        )
+        if undisposed and not source.leave_sessions:
+            raise FamMigrationError(
+                f"{source.name} has peers without an explicit disposition: {undisposed}"
+            )
+        missing_preserved = source.preserve_peers - {
+            str(row["name"]) for row in source_peers
+        }
+        if missing_preserved:
+            raise FamMigrationError(
+                f"preserved source peers are missing: {sorted(missing_preserved)}"
+            )
 
         member_rows = await _mappings(
             db,
@@ -404,6 +504,15 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
                     )
                 )
 
+        # All-source convergence must retain collections even without documents.
+        if not source.leave_sessions:
+            document_pairs.extend(
+                await _mappings(
+                    db,
+                    "SELECT observer,observed FROM collections WHERE workspace_name=:workspace",
+                    workspace=source.name,
+                )
+            )
         for row in document_pairs:
             observer = mapping.get(str(row["observer"]))
             observed = mapping.get(str(row["observed"]))
@@ -415,6 +524,7 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
             """
             SELECT
               (SELECT count(*) FROM messages WHERE workspace_name=:workspace AND session_name = ANY(:sessions)) AS messages,
+              (SELECT count(*) FROM message_embeddings WHERE workspace_name=:workspace AND session_name = ANY(:sessions)) AS message_embeddings,
               (SELECT count(*) FROM documents WHERE workspace_name=:workspace AND (session_name = ANY(:sessions) OR (session_name IS NULL AND observer = ANY(:mapped) AND observed = ANY(:mapped)))) AS documents,
               (SELECT count(*) FROM queue WHERE workspace_name=:workspace AND (session_id = ANY(:session_ids) OR session_id IS NULL)) AS queue_rows,
               (SELECT count(*) FROM queue_dead_letter WHERE workspace_name=:workspace AND session_id = ANY(:session_ids)) AS dead_letters
@@ -425,6 +535,19 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
             mapped=list(mapping),
         )
         report["sources"][source.name] = {
+            "peer_dispositions": {
+                str(row["name"]): {
+                    "target": mapping.get(str(row["name"])),
+                    "disposition": (
+                        "preserve-as-distinct"
+                        if row["name"] in source.preserve_peers
+                        else "canonicalize"
+                        if row["name"] in mapping
+                        else "archive"
+                    ),
+                }
+                for row in source_peers
+            },
             "sessions": len(selected_names),
             "leave_sessions": len(source.leave_sessions),
             **(counts[0] if counts else {}),
@@ -444,6 +567,11 @@ async def build_plan(db: AsyncSession, manifest: FamManifest) -> MigrationPlan:
                 f"peer-card authority is missing for {target_peer}: {workspace}/{source_peer}"
             )
 
+    await _check_pending_dream_collisions(
+        db,
+        manifest,
+        {move.old_session_id: move.new_session_id for move in session_moves},
+    )
     report["collection_pairs"] = len(collection_pairs)
     return MigrationPlan(
         sessions=tuple(session_moves),
@@ -463,8 +591,8 @@ def _canonical_card_key(
     if not key.endswith(suffix):
         return None
     raw_peer = key[: -len(suffix)]
-    canonical = source.peer_map.get(raw_peer) or aliases.get(raw_peer.casefold())
-    if canonical not in CANONICAL_PEERS:
+    canonical = source.peer_targets.get(raw_peer) or aliases.get(raw_peer.casefold())
+    if canonical not in set(CANONICAL_PEERS) | set(source.preserve_peers):
         return None
     return f"{canonical}_peer_card"
 
@@ -474,7 +602,17 @@ def _merge_peer_rows(
     rows: list[dict[str, Any]],
     manifest: FamManifest,
 ) -> dict[str, Any]:
-    authority_workspace, authority_peer = manifest.peer_card_authority[target_peer]
+    if target_peer in manifest.peer_card_authority:
+        authority_workspace, authority_peer = manifest.peer_card_authority[target_peer]
+    else:
+        if len(rows) != 1:
+            raise FamMigrationError(
+                f"preserved peer must have exactly one source: {target_peer}"
+            )
+        authority_workspace, authority_peer = (
+            str(rows[0]["workspace_name"]),
+            str(rows[0]["name"]),
+        )
     authority = next(
         (
             row
@@ -524,17 +662,34 @@ def _merge_peer_rows(
         for key, value in authority_internal.items()
         if key != "peer_card" and not key.endswith("_peer_card")
     }
+    if target_peer not in CANONICAL_PEERS:
+        internal_metadata.update(authority_internal)
     internal_metadata.update(cards)
-    metadata.update(
-        {
-            "display_name": manifest.canonical_peers[target_peer].get(
-                "display_name", target_peer
-            ),
-            "fam_migration_sources": [
-                f"{row['workspace_name']}/{row['name']}" for row in ordered
-            ],
-        }
-    )
+    # Keep the complete original cards and metadata even when canonical card keys merge.
+    internal_metadata["fam_migration"] = {
+        "disposition": "canonicalize"
+        if target_peer in CANONICAL_PEERS
+        else "preserve-as-distinct",
+        "sources": [
+            {
+                "workspace": row["workspace_name"],
+                "peer": row["name"],
+                "id": row["id"],
+                "created_at": row["created_at"].isoformat(),
+                "metadata": copy.deepcopy(row.get("metadata") or {}),
+                "configuration": copy.deepcopy(row.get("configuration") or {}),
+                "internal_metadata": copy.deepcopy(row.get("internal_metadata") or {}),
+            }
+            for row in ordered
+        ],
+    }
+    if target_peer in manifest.canonical_peers:
+        metadata["display_name"] = manifest.canonical_peers[target_peer].get(
+            "display_name", target_peer
+        )
+    metadata["fam_migration_sources"] = [
+        f"{row['workspace_name']}/{row['name']}" for row in ordered
+    ]
     return {
         "id": generate_nanoid(),
         "name": target_peer,
@@ -566,6 +721,11 @@ def _rewrite_payload(
     target_workspace: str,
     session_ids: dict[str, str],
 ) -> Any:
+    queue_empty = (
+        isinstance(value, dict)
+        and value.get("task_type") == "webhook"
+        and value.get("event_type") == "queue.empty"
+    )
     peer_keys = {
         "peer",
         "peer_id",
@@ -588,7 +748,7 @@ def _rewrite_payload(
                 rewritten: list[Any] = []
                 for item in node:
                     if isinstance(item, str):
-                        target = source.peer_map.get(item)
+                        target = source.peer_targets.get(item)
                         if target is None:
                             raise FamMigrationError(
                                 f"queue payload contains unmapped observer {item!r}"
@@ -599,8 +759,11 @@ def _rewrite_payload(
                 return rewritten
             return [rewrite(item) for item in node]
         if isinstance(node, str):
+            # Legacy queue.empty webhooks serialized absent peers as the string "None".
+            if queue_empty and key in {"observer", "observed"} and node == "None":
+                return node
             if key in peer_keys:
-                target = source.peer_map.get(node)
+                target = source.peer_targets.get(node)
                 if target is None:
                     raise FamMigrationError(
                         f"queue payload contains unmapped peer {node!r}"
@@ -621,17 +784,77 @@ def _rewrite_work_unit_key(
     source_workspace: str,
     target_workspace: str,
     session_ids: dict[str, str],
+    peer_map: dict[str, str],
 ) -> str:
-    rewritten = key.replace(source_workspace, target_workspace)
-    for old_id, new_id in session_ids.items():
-        rewritten = rewritten.replace(old_id, new_id)
-    return rewritten
+    parts = key.split(":")
+    # Historical migration rows used a three-field representation key with a
+    # database session ID. Keep that exact shape without treating names as IDs.
+    if len(parts) == 3 and parts[0] == "representation":
+        if parts[1] != source_workspace or parts[2] not in session_ids:
+            raise FamMigrationError(f"unsupported legacy work unit key: {key}")
+        return f"representation:{target_workspace}:{session_ids[parts[2]]}"
+    try:
+        parsed = parse_work_unit_key(key)
+    except ValueError as exc:
+        raise FamMigrationError(f"unsupported work unit key: {key}") from exc
+    if parsed.workspace_name is None:
+        return key
+    if parsed.workspace_name != source_workspace:
+        raise FamMigrationError(f"work unit key workspace mismatch: {key}")
+
+    workspace_index = 2 if parsed.task_type == "dream" else 1
+    parts[workspace_index] = target_workspace
+    peer_indexes = {
+        "representation": (3,) if len(parts) == 4 else (3, 4),
+        "summary": (3, 4),
+        "dream": (3, 4),
+    }.get(parsed.task_type, ())
+    for index in peer_indexes:
+        parts[index] = peer_map.get(parts[index], parts[index])
+    return ":".join(parts)
 
 
 async def _lock_tables(db: AsyncSession) -> None:
     await db.execute(
         text("LOCK TABLE " + ", ".join(LOCK_TABLES) + " IN SHARE ROW EXCLUSIVE MODE")
     )
+
+
+async def _check_pending_dream_collisions(
+    db: AsyncSession, manifest: FamManifest, session_ids: dict[str, str]
+) -> None:
+    rows = await _mappings(
+        db,
+        """
+        SELECT id,workspace_name,work_unit_key,session_id,payload FROM queue
+        WHERE workspace_name = ANY(:sources) AND task_type='dream' AND processed=false
+        ORDER BY id
+        """,
+        sources=list(manifest.source_names),
+    )
+    by_key: dict[str, list[int]] = {}
+    for row in rows:
+        source = manifest.source(str(row["workspace_name"]))
+        payload = row.get("payload") or {}
+        if row["session_id"] is not None:
+            should_move = str(row["session_id"]) in session_ids
+        else:
+            should_move = (
+                payload.get("observer") in source.peer_targets
+                and payload.get("observed") in source.peer_targets
+            )
+        if should_move:
+            key = _rewrite_work_unit_key(
+                str(row["work_unit_key"]),
+                source_workspace=source.name,
+                target_workspace=manifest.target_workspace,
+                session_ids=session_ids,
+                peer_map=source.peer_targets,
+            )
+            by_key.setdefault(key, []).append(int(row["id"]))
+    collisions = {key: ids for key, ids in by_key.items() if len(ids) > 1}
+    if collisions:
+        raise FamMigrationError(f"pending dream work unit key collision: {collisions}")
 
 
 async def _install_temp_maps(
@@ -671,7 +894,7 @@ async def _install_temp_maps(
             "target_peer": target_peer,
         }
         for source in manifest.sources
-        for source_peer, target_peer in source.peer_map.items()
+        for source_peer, target_peer in source.peer_targets.items()
     ]
     await db.execute(
         text(
@@ -707,16 +930,26 @@ async def _create_target_workspace_and_peers(
             "famMigrationSources": list(manifest.source_names),
         }
     )
-    await db.execute(
-        insert(models.Workspace.__table__),
-        {
-            "id": generate_nanoid(),
-            "name": manifest.target_workspace,
-            "metadata": metadata,
-            "configuration": manifest.workspace_configuration,
-            "internal_metadata": {"fam_migration": {"state": "running"}},
-        },
-    )
+    workspace_values = {
+        "metadata": metadata,
+        "configuration": manifest.workspace_configuration,
+        "internal_metadata": {"fam_migration": {"state": "running"}},
+    }
+    if await _workspace_exists(db, manifest.target_workspace):
+        await db.execute(
+            update(models.Workspace.__table__)
+            .where(models.Workspace.name == manifest.target_workspace)
+            .values(**workspace_values)
+        )
+    else:
+        await db.execute(
+            insert(models.Workspace.__table__),
+            {
+                "id": generate_nanoid(),
+                "name": manifest.target_workspace,
+                **workspace_values,
+            },
+        )
 
     source_rows = await _mappings(
         db,
@@ -729,12 +962,12 @@ async def _create_target_workspace_and_peers(
         """,
     )
     rows_by_target: dict[str, list[dict[str, Any]]] = {
-        peer: [] for peer in CANONICAL_PEERS
+        peer: [] for peer in sorted(manifest.target_peers)
     }
     source_lookup = {
         (source.name, source_peer): target
         for source in manifest.sources
-        for source_peer, target in source.peer_map.items()
+        for source_peer, target in source.peer_targets.items()
     }
     for row in source_rows:
         target = source_lookup[(str(row["workspace_name"]), str(row["name"]))]
@@ -745,7 +978,7 @@ async def _create_target_workspace_and_peers(
 
     peer_rows = [
         _merge_peer_rows(peer, rows_by_target[peer], manifest)
-        for peer in CANONICAL_PEERS
+        for peer in sorted(manifest.target_peers)
     ]
     await db.execute(insert(models.Peer.__table__), peer_rows)
 
@@ -975,18 +1208,37 @@ async def _move_queue_history(
                     data = data if isinstance(data, dict) else {}
                     observer = data.get("observer")
                     observed = data.get("observed")
-                    should_move = (
-                        observer is None or observer in source.peer_map
-                    ) and (observed is None or observed in source.peer_map)
+                    legacy_queue_empty = (
+                        payload.get("event_type") == "queue.empty"
+                        and observer in (None, "None")
+                        and observed in (None, "None")
+                    )
+                    should_move = legacy_queue_empty or (
+                        (observer is None or observer in source.peer_targets)
+                        and (observed is None or observed in source.peer_targets)
+                    )
+                    if data.get("session_id") is not None:
+                        should_move = should_move and any(
+                            move.source_workspace == source.name
+                            and move.session_name == data["session_id"]
+                            for move in plan.sessions
+                        )
                 else:
                     observer = payload.get("observer")
                     observed = payload.get("observed")
                     should_move = (
                         isinstance(observer, str)
                         and isinstance(observed, str)
-                        and observer in source.peer_map
-                        and observed in source.peer_map
+                        and observer in source.peer_targets
+                        and observed in source.peer_targets
                     )
+            if old_session_id is None and row.get("task_type") == "deletion":
+                payload = row.get("payload") or {}
+                should_move = payload.get("deletion_type") == "session" and any(
+                    move.source_workspace == source.name
+                    and move.session_name == payload.get("resource_id")
+                    for move in plan.sessions
+                )
             if not should_move:
                 continue
 
@@ -1001,6 +1253,7 @@ async def _move_queue_history(
                 source_workspace=source.name,
                 target_workspace=manifest.target_workspace,
                 session_ids=session_ids,
+                peer_map=source.peer_targets,
             )
             table_model = (
                 models.QueueItem if table == "queue" else models.QueueDeadLetter
@@ -1142,15 +1395,15 @@ async def verify_migration(
             target=manifest.target_workspace,
         )
     }
-    if peers != set(CANONICAL_PEERS):
-        raise FamMigrationError(f"fam peers are not canonical: {sorted(peers)}")
+    if peers != set(manifest.target_peers):
+        raise FamMigrationError(f"fam peers differ from manifest: {sorted(peers)}")
 
     noncanonical_messages = int(
         await _scalar(
             db,
             "SELECT count(*) FROM messages WHERE workspace_name=:target AND NOT (peer_name = ANY(:peers))",
             target=manifest.target_workspace,
-            peers=list(CANONICAL_PEERS),
+            peers=sorted(manifest.target_peers),
         )
         or 0
     )
@@ -1163,7 +1416,7 @@ async def verify_migration(
               AND (NOT (observer = ANY(:peers)) OR NOT (observed = ANY(:peers)))
             """,
             target=manifest.target_workspace,
-            peers=list(CANONICAL_PEERS),
+            peers=sorted(manifest.target_peers),
         )
         or 0
     )

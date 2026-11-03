@@ -70,6 +70,8 @@ OPENAI_API_KEY = "your-api-key-here"
 VECTOR_DIMENSIONS = 1536
 MAX_INPUT_TOKENS = 8192
 MAX_TOKENS_PER_REQUEST = 300000
+# For BGE-M3 only: mount/provision the pinned official tokenizer.json offline.
+# TOKENIZER_PATH = "/app/tokenizers/bge-m3.json"
 
 [embedding.model_config]
 transport = "openai"

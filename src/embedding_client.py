@@ -4,6 +4,7 @@ import threading
 import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
+from functools import cached_property
 from typing import Any, Literal, NamedTuple, TypeVar
 
 import tiktoken
@@ -13,6 +14,7 @@ from nanoid import generate as generate_nanoid
 from openai import AsyncOpenAI
 
 from .config import EmbeddingModelConfig, resolve_embedding_model_config, settings
+from .embedding_tokenizer import BGE_M3_MAX_TOKENS, BgeM3Tokenizer, is_bge_m3
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +175,7 @@ class _EmbeddingClient:
         max_input_tokens: int,
         max_tokens_per_request: int,
         send_dimensions: bool,
+        tokenizer_path: str | None = None,
     ):
         self.transport: str = config.transport
         self.model: str = config.model
@@ -205,11 +208,33 @@ class _EmbeddingClient:
             self.max_embedding_tokens = max_input_tokens
             self.max_batch_size = 2048  # OpenAI batch limit
 
-        try:
-            self.encoding: tiktoken.Encoding = tiktoken.encoding_for_model(self.model)
-        except KeyError:
-            self.encoding = tiktoken.get_encoding("cl100k_base")
+        self.bge_tokenizer: BgeM3Tokenizer | None = None
+        if is_bge_m3(self.model):
+            if not tokenizer_path:
+                raise ValueError(
+                    "BGE-M3 requires embedding.TOKENIZER_PATH to the pinned offline tokenizer"
+                )
+            self.bge_tokenizer = BgeM3Tokenizer(tokenizer_path)
+            self.max_embedding_tokens = min(
+                self.max_embedding_tokens,
+                max_tokens_per_request,
+                BGE_M3_MAX_TOKENS,
+            )
         self.max_embedding_tokens_per_request: int = max_tokens_per_request
+
+    @cached_property
+    def encoding(self) -> tiktoken.Encoding:
+        """Load lexical encoding only when needed; BGE embedding stays offline."""
+        try:
+            return tiktoken.encoding_for_model(self.model)
+        except KeyError:
+            return tiktoken.get_encoding("cl100k_base")
+
+    def count_tokens(self, text: str) -> int:
+        """Count embedding input tokens using the configured model tokenizer."""
+        if self.bge_tokenizer is not None:
+            return self.bge_tokenizer.count(text)
+        return len(self.encoding.encode(text))
 
     @property
     def provider(self) -> str:
@@ -224,7 +249,7 @@ class _EmbeddingClient:
         return embedding
 
     async def embed(self, query: str) -> list[float]:
-        token_count = len(self.encoding.encode(query))
+        token_count = self.count_tokens(query)
 
         if token_count > self.max_embedding_tokens:
             raise ValueError(
@@ -297,7 +322,7 @@ class _EmbeddingClient:
         # Validate per-input token limit and collect token counts for batching
         token_counts: list[int] = []
         for idx, text in enumerate(texts):
-            tokens = len(self.encoding.encode(text))
+            tokens = self.count_tokens(text)
             if tokens > self.max_embedding_tokens:
                 raise ValueError(
                     f"Text at index {idx} exceeds maximum token limit of {self.max_embedding_tokens} tokens (got {tokens} tokens)"
@@ -377,6 +402,11 @@ class _EmbeddingClient:
         """
         out: dict[str, list[tuple[str, int]]] = {}
         for text_id, text in id_resource_dict.items():
+            if self.bge_tokenizer is not None:
+                out[text_id] = self.bge_tokenizer.chunks(
+                    text, self.max_embedding_tokens
+                )
+                continue
             tokens = self.encoding.encode(text)
             if len(tokens) > self.max_embedding_tokens:
                 out[text_id] = _chunk_text_with_tokens(
@@ -603,6 +633,7 @@ class EmbeddingClient:
                         max_input_tokens=settings.EMBEDDING.MAX_INPUT_TOKENS,
                         max_tokens_per_request=settings.EMBEDDING.MAX_TOKENS_PER_REQUEST,
                         send_dimensions=settings.EMBEDDING.resolve_send_dimensions(),
+                        tokenizer_path=settings.EMBEDDING.TOKENIZER_PATH,
                     )
                     self._instance_signature = signature
                     logger.debug(
@@ -627,6 +658,7 @@ class EmbeddingClient:
             settings.EMBEDDING.MAX_INPUT_TOKENS,
             settings.EMBEDDING.MAX_TOKENS_PER_REQUEST,
             settings.EMBEDDING.resolve_send_dimensions(),
+            settings.EMBEDDING.TOKENIZER_PATH,
         )
 
     async def embed(self, query: str) -> list[float]:

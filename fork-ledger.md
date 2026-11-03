@@ -20,6 +20,58 @@
 
 ## Active seams
 
+### bge-m3-token-accounting
+
+Kind: `runtime`
+Criticality: `high`
+
+Contract:
+- BGE-M3 embedding inputs are counted with the pinned official offline tokenizer including special tokens, capped at the lowest of 8192, MAX_INPUT_TOKENS and MAX_TOKENS_PER_REQUEST, without downloads or truncation.
+- Long embedding inputs become exact original Unicode spans with 20 percent token overlap, full source coverage, per-span revalidation, stable sibling order and actual token-aware batching; overlength single queries and unchunked documents fail before provider dispatch.
+- The lexical deduplication encoding and non-BGE embedding tokenizer behavior remain unchanged.
+
+Upstream gap:
+- The recorded upstream embedding client falls back to cl100k_base for BGE-M3, accepts overlength model inputs, and chunks decoded token slices instead of retaining original source spans.
+
+Absorbed when:
+- Upstream provides equivalent BGE-M3 model token limits, lossless source-span chunking, offline pinned artifact validation and dispatch contracts.
+
+Fork touchpoints:
+- `config.toml.example`
+- `docs/v3/contributing/changing-embeddings.mdx`
+- `pyproject.toml`
+- `src/config.py`
+- `src/embedding_client.py`
+- `src/embedding_tokenizer.py`
+- `tests/llm/test_bge_embedding_tokenizer.py`
+- `uv.lock`
+
+Query scopes:
+- `path:src/embedding_client.py`
+- `path:src/embedding_tokenizer.py`
+
+Upstream anchors:
+- `symbol:src/embedding_client.py::_EmbeddingClient._prepare_chunks`
+
+Fork anchors:
+- `symbol:src/embedding_tokenizer.py::BgeM3Tokenizer`
+- `symbol:src/embedding_client.py::_EmbeddingClient.count_tokens`
+
+Proof:
+- Fork: `Set TEST_BGE_M3_TOKENIZER_PATH to the pinned local artifact and HONCHO_CONFIG_TOML_DISABLED=1; run uv run --frozen python -m pytest -n 0 tests/llm/test_bge_embedding_tokenizer.py tests/llm/test_embedding_client.py.`
+- Upstream: `Inspect _EmbeddingClient initialization, query validation and _prepare_chunks on the recorded upstream base.`
+- Fork expected: Real tokenizer boundary 8192 accepts and 8193 rejects before dispatch; exact Unicode spans cover all source, fit lower limits, preserve reconciliation order and charge actual batch counts. With input cap 16 and request cap 8, a 10-token query or unchunked document rejects before dispatch and generated persisted chunks and actual batches fit 8 tokens.
+- Upstream expected: Unknown BGE model names use cl100k_base; no pinned BGE tokenizer, special-token-inclusive model cap or source-span validation exists.
+
+Consumers:
+- `legacy` Self-hosted Honcho API, message ingestion, embedding reconciliation and deriver.
+
+Upstream lineage:
+- none
+
+Replay notes:
+- Keep the BGE tokenizer independent of embedding_client.encoding, used by lexical deduplication. Provision and read-only mount the documented pinned tokenizer.json at embedding.TOKENIZER_PATH for API and deriver; never fetch model assets during runtime. Rebuild image using pyproject.toml and uv.lock together.
+
 ### bundled-agent-skills
 
 Kind: `proof`
@@ -572,6 +624,7 @@ Criticality: `critical`
 
 Contract:
 - A reviewed manifest-driven operation can transactionally converge selected source workspaces into the canonical family workspace while preserving IDs, embeddings, reasoning/queue provenance, authoritative peer cards, excluded archives, failure state, rollback gates, and post-migration verification.
+- All-source convergence can retain explicit unresolved peers as distinct identities with complete source cards and metadata, and can reuse only a locked, verified pristine SDK-created destination while preserving its ID.
 
 Upstream gap:
 - The recorded upstream base has no migration operation for this local multi-workspace/identity convergence contract.
@@ -604,7 +657,7 @@ Fork anchors:
 - `path:tests/operations/test_fam_migration.py`
 
 Proof:
-- Fork: `.venv/bin/pytest -q tests/operations/test_fam_migration.py`.`
+- Fork: `.venv/bin/python -m pytest -q tests/operations/test_fam_migration.py`
 - Upstream: `inspect workspace/identity migration operations on the recorded upstream base.`
 - Fork expected: focused tests pass and disposable-PostgreSQL rehearsal preserves IDs/provenance/failure state while satisfying final verification gates.
 - Upstream expected: there is no equivalent manifest-driven guarded convergence operation.

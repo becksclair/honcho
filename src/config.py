@@ -775,6 +775,8 @@ class EmbeddingSettings(HonchoSettings):
         default_factory=_MODEL_CONFIG_DEFAULT
     )
     VECTOR_DIMENSIONS: Annotated[int, Field(default=1536, gt=0)] = 1536
+    # Required only for BGE-M3: local official tokenizer.json at the pinned revision.
+    TOKENIZER_PATH: str | None = None
     MAX_INPUT_TOKENS: Annotated[int, Field(default=8192, gt=0)] = 8192
     MAX_TOKENS_PER_REQUEST: Annotated[int, Field(default=300_000, gt=0)] = 300_000
     # Caps concurrent message-embedding fan-out on the API request path (the

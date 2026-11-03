@@ -9,7 +9,8 @@
     }
   ],
   "contract": [
-    "A reviewed manifest-driven operation can transactionally converge selected source workspaces into the canonical family workspace while preserving IDs, embeddings, reasoning/queue provenance, authoritative peer cards, excluded archives, failure state, rollback gates, and post-migration verification."
+    "A reviewed manifest-driven operation can transactionally converge selected source workspaces into the canonical family workspace while preserving IDs, embeddings, reasoning/queue provenance, authoritative peer cards, excluded archives, failure state, rollback gates, and post-migration verification.",
+    "All-source convergence can retain explicit unresolved peers as distinct identities with complete source cards and metadata, and can reuse only a locked, verified pristine SDK-created destination while preserving its ID."
   ],
   "criticality": "critical",
   "fork_anchors": [
@@ -36,7 +37,7 @@
   "lineage": [],
   "proof": {
     "fork": [
-      ".venv/bin/pytest -q tests/operations/test_fam_migration.py`."
+      ".venv/bin/python -m pytest -q tests/operations/test_fam_migration.py"
     ],
     "fork_expected": "focused tests pass and disposable-PostgreSQL rehearsal preserves IDs/provenance/failure state while satisfying final verification gates.",
     "upstream": [
